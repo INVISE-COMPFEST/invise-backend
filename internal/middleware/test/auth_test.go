@@ -1,4 +1,4 @@
-package middleware
+package middleware_test
 
 import (
 	"errors"
@@ -8,25 +8,24 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 
+	"invise-backend/internal/middleware"
 	pkgerr "invise-backend/pkg/errors"
 	"invise-backend/pkg/jwt"
+	"invise-backend/pkg/response"
 )
 
 func testErrorHandler(c fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	message := "internal server error"
-	machineCode := "INTERNAL_ERROR"
 
 	var appErr *pkgerr.AppError
 	if errors.As(err, &appErr) {
 		code = appErr.StatusCode
 		message = appErr.Message
-		machineCode = appErr.Code
 	}
 
-	return c.Status(code).JSON(fiber.Map{
-		"success": false,
-		"error":   fiber.Map{"code": machineCode, "message": message},
+	return c.Status(code).JSON(dto.Response[any]{
+		Message: message,
 	})
 }
 
@@ -42,7 +41,7 @@ func setupTestApp(middlewareHandler fiber.Handler) *fiber.App {
 
 func TestRequiredRoles_NoHeader(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc))
 
 	req, _ := http.NewRequest("GET", "/protected", nil)
 	resp, err := app.Test(req)
@@ -52,7 +51,7 @@ func TestRequiredRoles_NoHeader(t *testing.T) {
 
 func TestRequiredRoles_InvalidFormat(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc))
 
 	req, _ := http.NewRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "Token abc123")
@@ -63,7 +62,7 @@ func TestRequiredRoles_InvalidFormat(t *testing.T) {
 
 func TestRequiredRoles_InvalidToken(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc))
 
 	req, _ := http.NewRequest("GET", "/protected", nil)
 	req.Header.Set("Authorization", "Bearer invalid.token.here")
@@ -74,7 +73,7 @@ func TestRequiredRoles_InvalidToken(t *testing.T) {
 
 func TestRequiredRoles_ValidToken(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc))
 
 	token, err := jwtSvc.Generate("user-123", "test@example.com")
 	assert.NoError(t, err)
@@ -88,7 +87,7 @@ func TestRequiredRoles_ValidToken(t *testing.T) {
 
 func TestRequiredRoles_NoRolesRestriction(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc))
 
 	token, err := jwtSvc.Generate("user-123", "test@example.com")
 	assert.NoError(t, err)
@@ -102,7 +101,7 @@ func TestRequiredRoles_NoRolesRestriction(t *testing.T) {
 
 func TestRequiredRoles_WithRoleRejects(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc, "admin"))
+	app := setupTestApp(middleware.RequiredRoles(jwtSvc, "admin"))
 
 	token, err := jwtSvc.Generate("user-123", "test@example.com")
 	assert.NoError(t, err)

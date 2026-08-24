@@ -1,9 +1,10 @@
-package valkey
+package valkey_test
 
 import (
 	"testing"
 
 	"invise-backend/internal/bootstrap/config"
+	"invise-backend/internal/bootstrap/valkey"
 )
 
 func TestNewClient(t *testing.T) {
@@ -14,7 +15,7 @@ func TestNewClient(t *testing.T) {
 		DB:       2,
 	}
 
-	client := NewClient(cfg)
+	client := valkey.NewClient(cfg)
 	if client == nil {
 		t.Fatal("NewClient returned nil")
 	}
@@ -37,7 +38,7 @@ func TestNewClientDefaults(t *testing.T) {
 		Port: "6379",
 	}
 
-	client := NewClient(cfg)
+	client := valkey.NewClient(cfg)
 	if client == nil {
 		t.Fatal("NewClient returned nil")
 	}
@@ -58,7 +59,7 @@ func TestNewClientPing(t *testing.T) {
 		Port: "6379",
 	}
 
-	client := NewClient(cfg)
+	client := valkey.NewClient(cfg)
 	err := client.Ping(t.Context()).Err()
 	if err != nil {
 		t.Errorf("Ping failed: %v (is Valkey running?)", err)

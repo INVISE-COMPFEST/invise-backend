@@ -18,7 +18,3 @@ type LoginRequest struct {
 type TokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
-
-type MessageResponse struct {
-	Message string `json:"message"`
-}

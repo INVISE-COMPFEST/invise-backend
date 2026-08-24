@@ -35,8 +35,8 @@ type DBConfig struct {
 }
 
 type JWTConfig struct {
-	Secret         string
-	ExpiryMinutes  int
+	Secret        string
+	ExpiryMinutes int
 }
 
 type OTPConfig struct {

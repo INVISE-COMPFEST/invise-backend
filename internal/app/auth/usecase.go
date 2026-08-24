@@ -17,8 +17,8 @@ import (
 )
 
 type AuthUsecaseI interface {
-	Register(ctx context.Context, req RegisterRequest) (*MessageResponse, error)
-	Verify(ctx context.Context, req VerifyRequest) (*MessageResponse, error)
+	Register(ctx context.Context, req RegisterRequest) error
+	Verify(ctx context.Context, req VerifyRequest) error
 	Login(ctx context.Context, req LoginRequest) (*TokenResponse, error)
 }
 
@@ -52,23 +52,23 @@ func NewAuthUsecase(
 	}
 }
 
-func (u *authUsecase) Register(ctx context.Context, req RegisterRequest) (*MessageResponse, error) {
+func (u *authUsecase) Register(ctx context.Context, req RegisterRequest) error {
 	existing, err := u.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, pkgerr.InternalServerError("REGISTRATION_FAILED", "could not check existing user")
+		return pkgerr.InternalServerError("REGISTRATION_FAILED", "could not check existing user")
 	}
 	if existing != nil {
-		return nil, ErrEmailAlreadyExists
+		return ErrEmailAlreadyExists
 	}
 
 	hash, err := u.password.Hash(req.Password)
 	if err != nil {
-		return nil, pkgerr.InternalServerError("HASHING_FAILED", "could not hash password")
+		return pkgerr.InternalServerError("HASHING_FAILED", "could not hash password")
 	}
 
 	id, err := u.ulid.Generate()
 	if err != nil {
-		return nil, pkgerr.InternalServerError("ID_GENERATION_FAILED", "could not generate user ID")
+		return pkgerr.InternalServerError("ID_GENERATION_FAILED", "could not generate user ID")
 	}
 
 	user := &User{
@@ -78,53 +78,54 @@ func (u *authUsecase) Register(ctx context.Context, req RegisterRequest) (*Messa
 		Verified:     false,
 	}
 	if err := u.userRepo.Create(ctx, user); err != nil {
-		return nil, pkgerr.InternalServerError("REGISTRATION_FAILED", "could not create user")
+		return pkgerr.InternalServerError("REGISTRATION_FAILED", "could not create user")
 	}
 
 	otp := fmt.Sprintf("%06d", rand.Intn(1000000))
 	key := fmt.Sprintf("otp:%s", req.Email)
 	ttl := time.Duration(u.otpCfg.TTLMinutes) * time.Minute
 	if err := u.rdb.Set(ctx, key, otp, ttl).Err(); err != nil {
-		return nil, pkgerr.InternalServerError("OTP_STORAGE_FAILED", "could not store OTP")
+		return pkgerr.InternalServerError("OTP_STORAGE_FAILED", "could not store OTP")
 	}
 
 	if err := u.mailer.SendOTP(req.Email, otp); err != nil {
-		return nil, pkgerr.InternalServerError("EMAIL_FAILED", "could not send verification email")
+		fmt.Println(err.Error())
+		return pkgerr.InternalServerError("EMAIL_FAILED", "could not send verification email")
 	}
 
-	return &MessageResponse{Message: "registration successful, please check your email for verification code"}, nil
+	return nil
 }
 
-func (u *authUsecase) Verify(ctx context.Context, req VerifyRequest) (*MessageResponse, error) {
+func (u *authUsecase) Verify(ctx context.Context, req VerifyRequest) error {
 	user, err := u.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, pkgerr.InternalServerError("VERIFICATION_FAILED", "could not look up user")
+		return pkgerr.InternalServerError("VERIFICATION_FAILED", "could not look up user")
 	}
 	if user == nil {
-		return nil, ErrUserNotFound
+		return ErrUserNotFound
 	}
 	if user.Verified {
-		return &MessageResponse{Message: "account already verified"}, nil
+		return nil
 	}
 
 	key := fmt.Sprintf("otp:%s", req.Email)
 	stored, err := u.rdb.Get(ctx, key).Result()
 	if err == redis.Nil {
-		return nil, ErrInvalidOTP
+		return ErrInvalidOTP
 	}
 	if err != nil {
-		return nil, pkgerr.InternalServerError("OTP_LOOKUP_FAILED", "could not retrieve OTP")
+		return pkgerr.InternalServerError("OTP_LOOKUP_FAILED", "could not retrieve OTP")
 	}
 	if stored != req.OTP {
-		return nil, ErrInvalidOTP
+		return ErrInvalidOTP
 	}
 
 	if err := u.userRepo.UpdateVerified(ctx, user.ID, true); err != nil {
-		return nil, pkgerr.InternalServerError("VERIFICATION_FAILED", "could not verify account")
+		return pkgerr.InternalServerError("VERIFICATION_FAILED", "could not verify account")
 	}
 	u.rdb.Del(ctx, key)
 
-	return &MessageResponse{Message: "account verified successfully"}, nil
+	return nil
 }
 
 func (u *authUsecase) Login(ctx context.Context, req LoginRequest) (*TokenResponse, error) {

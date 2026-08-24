@@ -14,6 +14,7 @@ import (
 	"invise-backend/internal/app/auth"
 	"invise-backend/internal/bootstrap/config"
 	"invise-backend/internal/middleware"
+	"invise-backend/pkg/response"
 	pkgerr "invise-backend/pkg/errors"
 	pkgjwt "invise-backend/pkg/jwt"
 	pkgmail "invise-backend/pkg/mail"
@@ -76,7 +77,6 @@ func (s *Server) Listen(addr string) error {
 func errorHandler(c fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
 	message := "internal server error"
-	_machineCode := "INTERNAL_ERROR"
 
 	var fiberErr *fiber.Error
 	if errors.As(err, &fiberErr) {
@@ -88,14 +88,10 @@ func errorHandler(c fiber.Ctx, err error) error {
 	if errors.As(err, &appErr) {
 		code = appErr.StatusCode
 		message = appErr.Message
-		_machineCode = appErr.Code
 	}
 
-	return c.Status(code).JSON(fiber.Map{
-		"success": false,
-		"error": fiber.Map{
-			"code":    _machineCode,
-			"message": message,
-		},
+	return c.Status(code).JSON(dto.Response[any]{
+		Message: message,
 	})
 }
+

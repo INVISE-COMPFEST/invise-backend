@@ -44,3 +44,13 @@ func Conflict(code, message string) *AppError {
 func InternalServerError(code, message string) *AppError {
 	return New(http.StatusInternalServerError, code, message, nil)
 }
+
+// Global sentinel errors
+var (
+	ErrInvalidRequest      = BadRequest("INVALID_REQUEST", "invalid request body")
+	ErrValidationError     = BadRequest("VALIDATION_ERROR", "validation error")
+	ErrInternalServerError = InternalServerError("INTERNAL_ERROR", "internal server error")
+	ErrUnauthorized        = Unauthorized("UNAUTHORIZED", "unauthorized")
+	ErrForbidden           = Forbidden("FORBIDDEN", "forbidden")
+	ErrNotFound            = NotFound("NOT_FOUND", "not found")
+)

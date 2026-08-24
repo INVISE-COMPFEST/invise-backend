@@ -13,7 +13,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
-    -o main ./cmd/app/
+    -o main ./cmd/api/
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
@@ -36,7 +36,7 @@ COPY --from=builder /app/migrate .
 
 COPY --from=builder /app/db/migrations ./db/migrations
 
-COPY --from=builder /app/db/resources ./db/resources
+# COPY --from=builder /app/resources ./resources
 
 RUN mkdir -p logs assets/images && \
     chown -R appuser:appuser /app

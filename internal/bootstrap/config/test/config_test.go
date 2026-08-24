@@ -1,8 +1,10 @@
-package config
+package config_test
 
 import (
 	"os"
 	"testing"
+
+	"invise-backend/internal/bootstrap/config"
 )
 
 func TestLoad(t *testing.T) {
@@ -35,13 +37,15 @@ func TestLoad(t *testing.T) {
 		"LOG_LEVEL":          "debug",
 		"LOG_FORMAT":         "text",
 		"LOG_FILE_PATH":      "/tmp/test.log",
+		"VALKEY_HOST":        "valkey",
+		"VALKEY_PORT":        "6379",
 	}
 
 	for k, v := range env {
 		t.Setenv(k, v)
 	}
 
-	cfg := Load()
+	cfg := config.Load()
 
 	if cfg.App.Env != "development" {
 		t.Errorf("App.Env = %q, want %q", cfg.App.Env, "development")
@@ -146,7 +150,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("SEEDER_EMAIL", "e")
 	t.Setenv("SEEDER_PASSWORD", "p")
 
-	cfg := Load()
+	cfg := config.Load()
 
 	if cfg.JWT.ExpiryMinutes != 60 {
 		t.Errorf("JWT.ExpiryMinutes = %d, want default 60", cfg.JWT.ExpiryMinutes)
@@ -174,7 +178,7 @@ func TestLoadFromEnvFile(t *testing.T) {
 	os.Unsetenv("APP_PORT")
 	os.Unsetenv("JWT_SECRET")
 
-	cfg := Load()
+	cfg := config.Load()
 
 	if cfg.App.Env != "staging" {
 		t.Errorf("App.Env = %q, want %q (from .env file)", cfg.App.Env, "staging")

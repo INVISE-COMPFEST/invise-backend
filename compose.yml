@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     environment:
       APP_ENV: ${APP_ENV:-development}
       APP_PORT: "8080"
@@ -27,6 +27,11 @@ services:
       VALKEY_HOST: "valkey"
       VALKEY_PORT: "6379"
       VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+      SMTP_HOST: "${SMTP_HOST:-smtp.gmail.com}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
       SEEDER_EMAIL: "${SEEDER_EMAIL}"
       SEEDER_PASSWORD: "${SEEDER_PASSWORD}"
     ports:
@@ -50,27 +55,27 @@ services:
       retries: 3
       start_period: 40s
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "50080:50080" # For dev don't use privileged ports like 80 and 443, use higher ports instead
-      - "50443:50443" # For dev don't use privileged ports like 80 and 443, use higher ports instead
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:Z,ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:Z,ro
-      - nginx_logs:/var/log/nginx
-      # - /home/dev/ssl:/etc/nginx/ssl:Z,ro # For production, change with the actual server path to your SSL certificates
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - app-network
-    healthcheck:
-      test: ["CMD", "nginx", "-t"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "50080:50080" # For dev don't use privileged ports like 80 and 443, use higher ports instead
+  #     - "50443:50443" # For dev don't use privileged ports like 80 and 443, use higher ports instead
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:Z,ro
+  #     - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:Z,ro
+  #     - nginx_logs:/var/log/nginx
+  #     # - /home/dev/ssl:/etc/nginx/ssl:Z,ro # For production, change with the actual server path to your SSL certificates
+  #   depends_on:
+  #     app:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
+  #   healthcheck:
+  #     test: ["CMD", "nginx", "-t"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   postgres:
     image: postgres:18-alpine
@@ -115,7 +120,7 @@ services:
       start_period: 10s
 
   valkey:
-    image: valkey/valkey:8
+    image: valkey/valkey:9
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -136,8 +141,8 @@ volumes:
     driver: local
   app_logs:
     driver: local
-  nginx_logs:
-    driver: local
+  # nginx_logs:
+  #   driver: local
   static_files:
     driver: local
   minio_data:
@@ -148,6 +153,3 @@ volumes:
 networks:
   app-network: 
     driver: bridge
-    ipam:
-      config:
-        - subnet: "172.20.0.0/16"
