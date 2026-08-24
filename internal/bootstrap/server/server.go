@@ -13,6 +13,7 @@ import (
 
 	"invise-backend/internal/app/auth"
 	"invise-backend/internal/bootstrap/config"
+	"invise-backend/pkg/middleware"
 	pkgerr "invise-backend/pkg/errors"
 	pkgjwt "invise-backend/pkg/jwt"
 	pkgmail "invise-backend/pkg/mail"
@@ -58,6 +59,9 @@ func (s *Server) registerRoutes() {
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Post("/verify", authHandler.Verify)
 	authGroup.Post("/login", authHandler.Login)
+
+	// Protected routes
+	_ = middleware.RequiredAuth(jwtSvc) // reserved for future use
 
 	// Health
 	s.app.Get("/health", func(c fiber.Ctx) error {

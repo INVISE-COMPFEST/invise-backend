@@ -8,7 +8,8 @@ import (
 
 func TestNewClient(t *testing.T) {
 	cfg := config.ValkeyConfig{
-		Addr:     "localhost:6379",
+		Host:     "localhost",
+		Port:     "6379",
 		Password: "secret",
 		DB:       2,
 	}
@@ -32,7 +33,8 @@ func TestNewClient(t *testing.T) {
 
 func TestNewClientDefaults(t *testing.T) {
 	cfg := config.ValkeyConfig{
-		Addr: "valkey:6379",
+		Host: "valkey",
+		Port: "6379",
 	}
 
 	client := NewClient(cfg)
@@ -52,7 +54,8 @@ func TestNewClientPing(t *testing.T) {
 	}
 
 	cfg := config.ValkeyConfig{
-		Addr: "localhost:6379",
+		Host: "localhost",
+		Port: "6379",
 	}
 
 	client := NewClient(cfg)

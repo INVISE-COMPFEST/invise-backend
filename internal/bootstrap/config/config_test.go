@@ -127,6 +127,12 @@ func TestLoad(t *testing.T) {
 	if cfg.Log.FilePath != "/tmp/test.log" {
 		t.Errorf("Log.FilePath = %q, want %q", cfg.Log.FilePath, "/tmp/test.log")
 	}
+	if cfg.Valkey.Host != "valkey" {
+		t.Errorf("Valkey.Host = %q, want %q", cfg.Valkey.Host, "valkey")
+	}
+	if cfg.Valkey.Port != "6379" {
+		t.Errorf("Valkey.Port = %q, want %q", cfg.Valkey.Port, "6379")
+	}
 }
 
 func TestLoadDefaults(t *testing.T) {

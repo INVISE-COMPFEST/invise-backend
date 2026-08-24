@@ -72,7 +72,8 @@ type LogConfig struct {
 }
 
 type ValkeyConfig struct {
-	Addr     string
+	Host     string
+	Port     string
 	Password string
 	DB       int
 }
@@ -128,7 +129,8 @@ func Load() Config {
 			FilePath: getEnv("LOG_FILE_PATH", "/app/logs/app.log"),
 		},
 		Valkey: ValkeyConfig{
-			Addr:     getEnv("VALKEY_ADDR", "valkey:6379"),
+			Host:     getEnv("VALKEY_HOST", "valkey"),
+			Port:     getEnv("VALKEY_PORT", "6379"),
 			Password: getEnv("VALKEY_PASSWORD", ""),
 			DB:       getEnvInt("VALKEY_DB", 0),
 		},

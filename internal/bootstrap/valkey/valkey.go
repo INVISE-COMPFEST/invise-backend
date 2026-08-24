@@ -2,6 +2,7 @@ package valkey
 
 import (
 	"context"
+	"net"
 
 	"invise-backend/internal/bootstrap/config"
 
@@ -11,7 +12,7 @@ import (
 // NewClient creates a new Redis/Valkey client from the provided config.
 func NewClient(cfg config.ValkeyConfig) *redis.Client {
 	return redis.NewClient(&redis.Options{
-		Addr:     cfg.Addr,
+		Addr:     net.JoinHostPort(cfg.Host, cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
