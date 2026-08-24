@@ -31,7 +31,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
-		"message": res.Message,
+		"data":    fiber.Map{"message": res.Message},
 	})
 }
 
@@ -50,7 +50,7 @@ func (h *AuthHandler) Verify(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": res.Message,
+		"data":    fiber.Map{"message": res.Message},
 	})
 }
 
@@ -69,7 +69,6 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{
 		"success": true,
-		"message": "login successful",
 		"data":    fiber.Map{"access_token": res.AccessToken},
 	})
 }
