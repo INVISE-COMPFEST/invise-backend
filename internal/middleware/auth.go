@@ -28,19 +28,9 @@ func RequiredRoles(jwtSvc jwt.JwtI, roles ...string) fiber.Handler {
 
 		c.Locals("user_id", claims.UserID)
 		c.Locals("email", claims.Email)
-		c.Locals("role", claims.Role)
 
 		if len(roles) > 0 {
-			allowed := false
-			for _, r := range roles {
-				if claims.Role == r {
-					allowed = true
-					break
-				}
-			}
-			if !allowed {
-				return pkgerr.Forbidden("INSUFFICIENT_ROLE", "you do not have permission to access this resource")
-			}
+			return pkgerr.Forbidden("INSUFFICIENT_ROLE", "role-based access not implemented")
 		}
 
 		return c.Next()

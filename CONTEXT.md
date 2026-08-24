@@ -6,7 +6,7 @@
 
 - **OTP (One-Time Password)**: A 6-digit numeric code sent via email during registration. Stored in Valkey with a configurable TTL (default 5 minutes). Used to verify the user's email address.
 
-- **Access Token**: A JWT bearer token issued on successful login. Contains `user_id`, `email`, and `role` claims. Signed with HS256. Configurable expiry (default 60 minutes).
+- **Access Token**: A JWT bearer token issued on successful login. Contains `user_id` and `email` claims. Signed with HS256. Configurable expiry (default 60 minutes).
 
 - **Verified**: A boolean flag on User. Unverified users cannot log in. Set to `true` after successful OTP verification.
 

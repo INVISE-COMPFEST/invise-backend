@@ -9,12 +9,11 @@ import (
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
-	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
 
 type JwtI interface {
-	Generate(userID, email, role string) (string, error)
+	Generate(userID, email string) (string, error)
 	Validate(tokenString string) (*Claims, error)
 }
 
@@ -30,11 +29,10 @@ func New(secret string, expiryMinutes int) JwtI {
 	}
 }
 
-func (j *jwtManager) Generate(userID, email, role string) (string, error) {
+func (j *jwtManager) Generate(userID, email string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
 		Email:  email,
-		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

@@ -143,7 +143,7 @@ func (u *authUsecase) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 		return nil, ErrInvalidCredentials
 	}
 
-	token, err := u.jwt.Generate(user.ID, user.Email, "user")
+	token, err := u.jwt.Generate(user.ID, user.Email)
 	if err != nil {
 		return nil, pkgerr.InternalServerError("TOKEN_GENERATION_FAILED", "could not generate token")
 	}

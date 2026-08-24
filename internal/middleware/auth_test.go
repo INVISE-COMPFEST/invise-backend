@@ -76,49 +76,7 @@ func TestRequiredRoles_ValidToken(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
 	app := setupTestApp(RequiredRoles(jwtSvc))
 
-	token, err := jwtSvc.Generate("user-123", "test@example.com", "user")
-	assert.NoError(t, err)
-
-	req, _ := http.NewRequest("GET", "/protected", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := app.Test(req)
-	assert.NoError(t, err)
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestRequiredRoles_WrongRole(t *testing.T) {
-	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc, "admin"))
-
-	token, err := jwtSvc.Generate("user-123", "test@example.com", "user")
-	assert.NoError(t, err)
-
-	req, _ := http.NewRequest("GET", "/protected", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := app.Test(req)
-	assert.NoError(t, err)
-	assert.Equal(t, fiber.StatusForbidden, resp.StatusCode)
-}
-
-func TestRequiredRoles_CorrectRole(t *testing.T) {
-	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc, "admin"))
-
-	token, err := jwtSvc.Generate("user-123", "test@example.com", "admin")
-	assert.NoError(t, err)
-
-	req, _ := http.NewRequest("GET", "/protected", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := app.Test(req)
-	assert.NoError(t, err)
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-}
-
-func TestRequiredRoles_MultipleRoles(t *testing.T) {
-	jwtSvc := jwt.New("test-secret", 60)
-	app := setupTestApp(RequiredRoles(jwtSvc, "admin", "editor"))
-
-	token, err := jwtSvc.Generate("user-123", "test@example.com", "editor")
+	token, err := jwtSvc.Generate("user-123", "test@example.com")
 	assert.NoError(t, err)
 
 	req, _ := http.NewRequest("GET", "/protected", nil)
@@ -132,7 +90,7 @@ func TestRequiredRoles_NoRolesRestriction(t *testing.T) {
 	jwtSvc := jwt.New("test-secret", 60)
 	app := setupTestApp(RequiredRoles(jwtSvc))
 
-	token, err := jwtSvc.Generate("user-123", "test@example.com", "viewer")
+	token, err := jwtSvc.Generate("user-123", "test@example.com")
 	assert.NoError(t, err)
 
 	req, _ := http.NewRequest("GET", "/protected", nil)
@@ -140,4 +98,18 @@ func TestRequiredRoles_NoRolesRestriction(t *testing.T) {
 	resp, err := app.Test(req)
 	assert.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestRequiredRoles_WithRoleRejects(t *testing.T) {
+	jwtSvc := jwt.New("test-secret", 60)
+	app := setupTestApp(RequiredRoles(jwtSvc, "admin"))
+
+	token, err := jwtSvc.Generate("user-123", "test@example.com")
+	assert.NoError(t, err)
+
+	req, _ := http.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := app.Test(req)
+	assert.NoError(t, err)
+	assert.Equal(t, fiber.StatusForbidden, resp.StatusCode)
 }
