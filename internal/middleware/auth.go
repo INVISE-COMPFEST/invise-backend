@@ -5,11 +5,11 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 
-	"invise-backend/pkg/jwt"
 	pkgerr "invise-backend/pkg/errors"
+	"invise-backend/pkg/jwt"
 )
 
-func RequiredAuth(jwtSvc jwt.JwtI) fiber.Handler {
+func RequiredRoles(jwtSvc jwt.JwtI, roles ...string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
@@ -28,6 +28,20 @@ func RequiredAuth(jwtSvc jwt.JwtI) fiber.Handler {
 
 		c.Locals("user_id", claims.UserID)
 		c.Locals("email", claims.Email)
+		c.Locals("role", claims.Role)
+
+		if len(roles) > 0 {
+			allowed := false
+			for _, r := range roles {
+				if claims.Role == r {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return pkgerr.Forbidden("INSUFFICIENT_ROLE", "you do not have permission to access this resource")
+			}
+		}
 
 		return c.Next()
 	}
