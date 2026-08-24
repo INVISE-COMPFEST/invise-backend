@@ -24,7 +24,9 @@ services:
       LOG_LEVEL: "info"
       LOG_FORMAT: "json"
       LOG_FILE_PATH: "/app/logs/app.log"
-      SEEDER_EMAIL: "${SEEDER_EMAIL:-admin@bccdev.id}"
+      VALKEY_ADDR: "valkey:6379"
+      VALKEY_PASSWORD: "${VALKEY_PASSWORD:-}"
+      SEEDER_EMAIL: "${SEEDER_EMAIL}"
       SEEDER_PASSWORD: "${SEEDER_PASSWORD}"
     ports:
       - "8080:8080" # Disable this in production, use nginx to reverse proxy the app instead
@@ -32,6 +34,8 @@ services:
       postgres:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     volumes:
       - app_logs:/app/logs
@@ -109,6 +113,21 @@ services:
       retries: 3
       start_period: 10s
 
+  valkey:
+    image: valkey/valkey:8
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local
@@ -121,6 +140,8 @@ volumes:
   static_files:
     driver: local
   minio_data:
+    driver: local
+  valkey_data:
     driver: local
 
 networks:
