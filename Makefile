@@ -4,6 +4,7 @@
 APP_NAME       := invise-backend
 MAIN_PATH      := ./cmd/api
 MIGRATE_PATH   := ./cmd/migrate
+SEED_PATH      := ./cmd/seed
 BIN_DIR        := ./build/bin
 ENV_FILE       := .env
 MIGRATION_DIR  := ./db/migrations
@@ -21,7 +22,7 @@ GOMOD   := $(GOCMD) mod
 .DEFAULT_GOAL := help
 
 .PHONY: all help setup run dev build local-build test test-cover fmt lint tidy clean \
-        db-create db-migrate db-rollback db-status db-reset db-version \
+        db-create db-migrate db-rollback db-status db-reset db-version db-seed \
         docker-build up down restart logs logs-all status \
         db-backup db-restore db-shell migrate-up migrate-down migrate-status \
         health clean-all
@@ -113,6 +114,7 @@ local-build: ## Build application and migration binaries into build/bin
 	@mkdir -p $(BIN_DIR)
 	@$(GOBUILD) -o $(BIN_DIR)/$(APP_NAME) $(MAIN_PATH)
 	@$(GOBUILD) -o $(BIN_DIR)/migrate $(MIGRATE_PATH)
+	@$(GOBUILD) -o $(BIN_DIR)/seed $(SEED_PATH)
 	@echo "Build successful! Binaries in $(BIN_DIR)/"
 
 clean: ## Remove build artifacts and temporary files
@@ -148,6 +150,10 @@ db-reset: ## Reset all migrations (WARNING: drops all tables!)
 
 db-version: ## Print current database migration version
 	@$(GORUN) $(MIGRATE_PATH) version
+
+db-seed: ## Seed database with demo data (requires SEEDER_EMAIL and SEEDER_PASSWORD in .env)
+	@echo "Seeding database..."
+	@$(GORUN) $(SEED_PATH)
 
 migrate-up: db-migrate ## Alias for db-migrate
 migrate-down: db-rollback ## Alias for db-rollback
