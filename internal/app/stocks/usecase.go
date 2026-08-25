@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -43,9 +44,27 @@ func NewStockUsecase(repo StockRepositoryI, aiClient ai.AIClientI, ulid ulid.Gen
 
 type salesRecord struct {
 	DateMonth    string
-	StoreID      string
+	ID           string
 	ItemID       string
+	StoreID      string
+	DeptID       string
+	CatID        string
+	StateID      string
 	MonthlySales float64
+}
+
+type itemCostInfo struct {
+	Cost        float64
+	ProductName string
+	StoreID     string
+	Month       string
+}
+
+type itemStockInfo struct {
+	Quantity    int
+	ProductName string
+	StoreID     string
+	Month       string
 }
 
 func (u *stockUsecase) Import(
@@ -73,13 +92,13 @@ func (u *stockUsecase) Import(
 		return nil, err
 	}
 
-	// Parse unit cost CSV
+	// Parse unit cost / modal CSV
 	costMap, err := parseCostCSV(costFile)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse stock level CSV
+	// Parse stock level / inventory CSV
 	stockMap, err := parseStockLevelCSV(stockLevelFile)
 	if err != nil {
 		return nil, err
@@ -91,12 +110,17 @@ func (u *stockUsecase) Import(
 		return nil, err
 	}
 
-	// 3. Map predictions by item ID
+	// 3. Map predictions by item ID, ID, and series ID
 	predictionMap := make(map[string]float64)
 	for _, pred := range aiResp.Predictions {
-		predictionMap[pred.ItemID] = pred.PredictedMonthlySales
+		if pred.ItemID != "" {
+			predictionMap[pred.ItemID] = pred.PredictedMonthlySales
+		}
 		if pred.ID != "" {
 			predictionMap[pred.ID] = pred.PredictedMonthlySales
+		}
+		if pred.SeriesID != "" {
+			predictionMap[pred.SeriesID] = pred.PredictedMonthlySales
 		}
 	}
 
@@ -115,14 +139,42 @@ func (u *stockUsecase) Import(
 	reasonsBytes, _ := json.Marshal(reasons)
 	reasonsJSON := string(reasonsBytes)
 
-	// 4. Group historical sales points by item
+	// 4. Build canonical item mappings and group historical sales points
+	// aliasMap maps any identifier (item_id, id, series_id) to the canonical SKU key
+	aliasMap := make(map[string]string)
+	idToItem := make(map[string]string)
 	itemHistory := make(map[string][]float64)
 	itemStores := make(map[string]string)
+
 	for _, rec := range salesRecords {
-		itemHistory[rec.ItemID] = append(itemHistory[rec.ItemID], rec.MonthlySales)
-		if rec.StoreID != "" {
-			itemStores[rec.ItemID] = rec.StoreID
+		canonicalKey := rec.ItemID
+		if canonicalKey == "" {
+			canonicalKey = rec.ID
 		}
+		if canonicalKey == "" {
+			continue
+		}
+
+		if rec.ID != "" {
+			aliasMap[rec.ID] = canonicalKey
+			idToItem[canonicalKey] = rec.ID
+		}
+		if rec.ItemID != "" {
+			aliasMap[rec.ItemID] = canonicalKey
+		}
+
+		itemHistory[canonicalKey] = append(itemHistory[canonicalKey], rec.MonthlySales)
+		if rec.StoreID != "" {
+			itemStores[canonicalKey] = rec.StoreID
+		}
+	}
+
+	// Helper to resolve canonical SKU key
+	resolveCanonical := func(key string) string {
+		if can, ok := aliasMap[key]; ok && can != "" {
+			return can
+		}
+		return key
 	}
 
 	// 5. Generate Stock ID
@@ -136,52 +188,111 @@ func (u *stockUsecase) Import(
 		forecastMonth = time.Now().Format("2006-01")
 	}
 
-	stock := &Stock{
-		ID:            stockID,
-		UserID:        userID,
-		Name:          fmt.Sprintf("Stock Batch %s", time.Now().Format("2006-01-02 15:04")),
-		ForecastMonth: forecastMonth,
-		TotalForecast: aiResp.Summary.TotalForecast,
-		MeanForecast:  aiResp.Summary.MeanForecast,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-	}
-
-	// Collect unique items from sales, cost, or stock records
+	// Collect all unique canonical items from sales, cost, or stock records
 	allItems := make(map[string]bool)
 	for itemID := range itemHistory {
 		allItems[itemID] = true
 	}
-	for itemID := range costMap {
-		allItems[itemID] = true
+	for key := range costMap {
+		allItems[resolveCanonical(key)] = true
 	}
-	for itemID := range stockMap {
-		allItems[itemID] = true
+	for key := range stockMap {
+		allItems[resolveCanonical(key)] = true
+	}
+
+	// Helper to look up cost info for an item key
+	getCostInfo := func(key string) itemCostInfo {
+		if info, ok := costMap[key]; ok {
+			return info
+		}
+		if altID, ok := idToItem[key]; ok {
+			if info, ok := costMap[altID]; ok {
+				return info
+			}
+		}
+		for k, info := range costMap {
+			if resolveCanonical(k) == key {
+				return info
+			}
+		}
+		return itemCostInfo{}
+	}
+
+	// Helper to look up stock info for an item key
+	getStockInfo := func(key string) itemStockInfo {
+		if info, ok := stockMap[key]; ok {
+			return info
+		}
+		if altID, ok := idToItem[key]; ok {
+			if info, ok := stockMap[altID]; ok {
+				return info
+			}
+		}
+		for k, info := range stockMap {
+			if resolveCanonical(k) == key {
+				return info
+			}
+		}
+		return itemStockInfo{}
+	}
+
+	// Helper to look up predicted sales for an item key
+	getPredictedSales := func(key string) float64 {
+		if p, ok := predictionMap[key]; ok {
+			return p
+		}
+		if altID, ok := idToItem[key]; ok {
+			if p, ok := predictionMap[altID]; ok {
+				return p
+			}
+		}
+		for k, p := range predictionMap {
+			if resolveCanonical(k) == key {
+				return p
+			}
+		}
+		return 0.0
 	}
 
 	// Calculate overall average price across items
 	var totalPrice float64
 	var priceCount int
-	for _, price := range costMap {
-		totalPrice += price
-		priceCount++
+	for itemID := range allItems {
+		costInfo := getCostInfo(itemID)
+		if costInfo.Cost > 0 {
+			totalPrice += costInfo.Cost
+			priceCount++
+		}
 	}
 	marketAvg := 0.0
 	if priceCount > 0 {
 		marketAvg = math.Round((totalPrice/float64(priceCount))*100) / 100
 	}
 
-	var items []Item
+	// Sort item keys deterministically
+	var sortedItemKeys []string
 	for itemID := range allItems {
+		sortedItemKeys = append(sortedItemKeys, itemID)
+	}
+	sort.Strings(sortedItemKeys)
+
+	var items []Item
+	var sumPredictedSales float64
+
+	for _, itemID := range sortedItemKeys {
 		itemIDVal, err := u.ulid.Generate()
 		if err != nil {
 			return nil, pkgerr.InternalServerError("ID_GENERATION_FAILED", "could not generate item ID")
 		}
 
-		qty := stockMap[itemID]
-		unitCost := costMap[itemID]
+		costInfo := getCostInfo(itemID)
+		stockInfo := getStockInfo(itemID)
+
+		qty := stockInfo.Quantity
+		unitCost := costInfo.Cost
 		valueLocked := math.Round((float64(qty)*unitCost)*100) / 100
-		predictedSales := predictionMap[itemID]
+		predictedSales := getPredictedSales(itemID)
+		sumPredictedSales += predictedSales
 
 		history := itemHistory[itemID]
 		var avgSales float64
@@ -235,8 +346,23 @@ func (u *stockUsecase) Import(
 		points = append(points, []float64{float64(len(history) + 1), math.Round(predictedSales*100) / 100})
 		pointsBytes, _ := json.Marshal(points)
 
-		name := formatItemName(itemID)
+		// Determine product name: prefer CSV product_name, then fallback to formatItemName
+		name := costInfo.ProductName
+		if name == "" {
+			name = stockInfo.ProductName
+		}
+		if name == "" {
+			name = formatItemName(itemID)
+		}
+
+		// Determine store ID
 		storeID := itemStores[itemID]
+		if storeID == "" {
+			storeID = stockInfo.StoreID
+		}
+		if storeID == "" {
+			storeID = costInfo.StoreID
+		}
 
 		items = append(items, Item{
 			ID:                   itemIDVal,
@@ -260,6 +386,24 @@ func (u *stockUsecase) Import(
 			CreatedAt:            time.Now(),
 			UpdatedAt:            time.Now(),
 		})
+	}
+
+	totalForecast := aiResp.Summary.TotalForecast
+	meanForecast := aiResp.Summary.MeanForecast
+	if totalForecast == 0 && len(items) > 0 {
+		totalForecast = math.Round(sumPredictedSales*100) / 100
+		meanForecast = math.Round((sumPredictedSales/float64(len(items)))*100) / 100
+	}
+
+	stock := &Stock{
+		ID:            stockID,
+		UserID:        userID,
+		Name:          fmt.Sprintf("Stock Batch %s", time.Now().Format("2006-01-02 15:04")),
+		ForecastMonth: forecastMonth,
+		TotalForecast: totalForecast,
+		MeanForecast:  meanForecast,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	// 6. Save in database
@@ -388,6 +532,7 @@ func (u *stockUsecase) GetStockProjection(ctx context.Context, userID, stockID s
 	return res, nil
 }
 
+// stub
 func (u *stockUsecase) GetMarketContext(ctx context.Context, userID string) (*MarketContextResponse, error) {
 	stock, err := u.repo.FindLatestStockByUserID(ctx, userID)
 	if err != nil {
@@ -443,12 +588,73 @@ func parseSalesCSV(r io.Reader) ([]salesRecord, error) {
 		headerMap[clean] = i
 	}
 
-	dateMonthIdx, ok1 := headerMap["date_month"]
-	storeIDIdx, ok2 := headerMap["store_id"]
-	itemIDIdx, ok3 := headerMap["item_id"]
-	monthlySalesIdx, ok4 := headerMap["monthly_sales"]
+	dateMonthIdx, hasDate := headerMap["date_month"]
+	if !hasDate {
+		dateMonthIdx, hasDate = headerMap["month"]
+	}
+	if !hasDate {
+		dateMonthIdx, hasDate = headerMap["date"]
+	}
+	if !hasDate {
+		dateMonthIdx, hasDate = headerMap["period"]
+	}
 
-	if !ok1 || !ok2 || !ok3 || !ok4 {
+	idIdx, hasID := headerMap["id"]
+	if !hasID {
+		idIdx, hasID = headerMap["series_id"]
+	}
+
+	itemIDIdx, hasItem := headerMap["item_id"]
+	if !hasItem {
+		itemIDIdx, hasItem = headerMap["sku"]
+	}
+	if !hasItem {
+		itemIDIdx, hasItem = headerMap["product_id"]
+	}
+	if !hasItem && hasID {
+		itemIDIdx = idIdx
+		hasItem = true
+	}
+	if !hasID && hasItem {
+		idIdx = itemIDIdx
+		hasID = true
+	}
+
+	storeIDIdx, hasStore := headerMap["store_id"]
+	if !hasStore {
+		storeIDIdx, hasStore = headerMap["store"]
+	}
+
+	monthlySalesIdx, hasSales := headerMap["monthly_sales"]
+	if !hasSales {
+		monthlySalesIdx, hasSales = headerMap["sales"]
+	}
+	if !hasSales {
+		monthlySalesIdx, hasSales = headerMap["quantity"]
+	}
+	if !hasSales {
+		monthlySalesIdx, hasSales = headerMap["qty"]
+	}
+
+	deptIDIdx, hasDept := headerMap["dept_id"]
+	if !hasDept {
+		deptIDIdx, hasDept = headerMap["dept"]
+	}
+
+	catIDIdx, hasCat := headerMap["cat_id"]
+	if !hasCat {
+		catIDIdx, hasCat = headerMap["category"]
+	}
+	if !hasCat {
+		catIDIdx, hasCat = headerMap["cat"]
+	}
+
+	stateIDIdx, hasState := headerMap["state_id"]
+	if !hasState {
+		stateIDIdx, hasState = headerMap["state"]
+	}
+
+	if !hasDate || !hasItem || !hasSales {
 		return nil, ErrInvalidCSVFormat
 	}
 
@@ -461,15 +667,43 @@ func parseSalesCSV(r io.Reader) ([]salesRecord, error) {
 		if err != nil {
 			return nil, ErrInvalidCSVFormat
 		}
-		if len(row) <= monthlySalesIdx || len(row) <= itemIDIdx || len(row) <= dateMonthIdx || len(row) <= storeIDIdx {
+		if len(row) <= dateMonthIdx || len(row) <= itemIDIdx || len(row) <= monthlySalesIdx {
 			continue
 		}
 
-		sales, _ := strconv.ParseFloat(strings.TrimSpace(row[monthlySalesIdx]), 64)
+		sales, err := strconv.ParseFloat(strings.TrimSpace(row[monthlySalesIdx]), 64)
+		if err != nil {
+			sales = 0
+		}
+
+		var idVal, itemIDVal, storeIDVal, deptIDVal, catIDVal, stateIDVal string
+		if hasID && len(row) > idIdx {
+			idVal = strings.TrimSpace(row[idIdx])
+		}
+		if hasItem && len(row) > itemIDIdx {
+			itemIDVal = strings.TrimSpace(row[itemIDIdx])
+		}
+		if hasStore && len(row) > storeIDIdx {
+			storeIDVal = strings.TrimSpace(row[storeIDIdx])
+		}
+		if hasDept && len(row) > deptIDIdx {
+			deptIDVal = strings.TrimSpace(row[deptIDIdx])
+		}
+		if hasCat && len(row) > catIDIdx {
+			catIDVal = strings.TrimSpace(row[catIDIdx])
+		}
+		if hasState && len(row) > stateIDIdx {
+			stateIDVal = strings.TrimSpace(row[stateIDIdx])
+		}
+
 		records = append(records, salesRecord{
 			DateMonth:    strings.TrimSpace(row[dateMonthIdx]),
-			StoreID:      strings.TrimSpace(row[storeIDIdx]),
-			ItemID:       strings.TrimSpace(row[itemIDIdx]),
+			ID:           idVal,
+			ItemID:       itemIDVal,
+			StoreID:      storeIDVal,
+			DeptID:       deptIDVal,
+			CatID:        catIDVal,
+			StateID:      stateIDVal,
 			MonthlySales: sales,
 		})
 	}
@@ -481,7 +715,7 @@ func parseSalesCSV(r io.Reader) ([]salesRecord, error) {
 	return records, nil
 }
 
-func parseCostCSV(r io.Reader) (map[string]float64, error) {
+func parseCostCSV(r io.Reader) (map[string]itemCostInfo, error) {
 	reader := csv.NewReader(r)
 	reader.TrimLeadingSpace = true
 
@@ -495,27 +729,69 @@ func parseCostCSV(r io.Reader) (map[string]float64, error) {
 		headerMap[strings.ToLower(strings.TrimSpace(h))] = i
 	}
 
+	idIdx, hasID := headerMap["id"]
 	itemIdx, hasItem := headerMap["item_id"]
 	if !hasItem {
 		itemIdx, hasItem = headerMap["sku"]
 	}
+	if !hasItem {
+		itemIdx, hasItem = headerMap["product_id"]
+	}
+	if !hasItem && hasID {
+		itemIdx = idIdx
+		hasItem = true
+	}
+	if !hasID && hasItem {
+		idIdx = itemIdx
+		hasID = true
+	}
 
-	costIdx, hasCost := headerMap["unit_cost"]
+	costIdx, hasCost := headerMap["modal"]
 	if !hasCost {
-		costIdx, hasCost = headerMap["sell_price"]
+		costIdx, hasCost = headerMap["unit_cost"]
 	}
 	if !hasCost {
 		costIdx, hasCost = headerMap["cost"]
 	}
 	if !hasCost {
+		costIdx, hasCost = headerMap["sell_price"]
+	}
+	if !hasCost {
 		costIdx, hasCost = headerMap["price"]
+	}
+	if !hasCost {
+		costIdx, hasCost = headerMap["unit_price"]
+	}
+
+	monthIdx, hasMonth := headerMap["month"]
+	if !hasMonth {
+		monthIdx, hasMonth = headerMap["date_month"]
+	}
+	if !hasMonth {
+		monthIdx, hasMonth = headerMap["date"]
+	}
+
+	nameIdx, hasName := headerMap["product_name"]
+	if !hasName {
+		nameIdx, hasName = headerMap["name"]
+	}
+	if !hasName {
+		nameIdx, hasName = headerMap["item_name"]
+	}
+	if !hasName {
+		nameIdx, hasName = headerMap["title"]
+	}
+
+	storeIdx, hasStore := headerMap["store"]
+	if !hasStore {
+		storeIdx, hasStore = headerMap["store_id"]
 	}
 
 	if !hasItem || !hasCost {
 		return nil, ErrInvalidCSVFormat
 	}
 
-	costMap := make(map[string]float64)
+	costMap := make(map[string]itemCostInfo)
 	for {
 		row, err := reader.Read()
 		if err == io.EOF {
@@ -527,13 +803,57 @@ func parseCostCSV(r io.Reader) (map[string]float64, error) {
 		if len(row) <= itemIdx || len(row) <= costIdx {
 			continue
 		}
+
+		key := strings.TrimSpace(row[itemIdx])
+		if key == "" && hasID && len(row) > idIdx {
+			key = strings.TrimSpace(row[idIdx])
+		}
+		if key == "" {
+			continue
+		}
+
 		cost, _ := strconv.ParseFloat(strings.TrimSpace(row[costIdx]), 64)
-		costMap[strings.TrimSpace(row[itemIdx])] = cost
+
+		var monthVal, nameVal, storeVal string
+		if hasMonth && len(row) > monthIdx {
+			monthVal = strings.TrimSpace(row[monthIdx])
+		}
+		if hasName && len(row) > nameIdx {
+			nameVal = strings.TrimSpace(row[nameIdx])
+		}
+		if hasStore && len(row) > storeIdx {
+			storeVal = strings.TrimSpace(row[storeIdx])
+		}
+
+		existing, exists := costMap[key]
+		if !exists || monthVal == "" || monthVal >= existing.Month {
+			costMap[key] = itemCostInfo{
+				Cost:        cost,
+				ProductName: nameVal,
+				StoreID:     storeVal,
+				Month:       monthVal,
+			}
+		}
+		// Also record by idKey if distinct
+		if hasID && len(row) > idIdx {
+			idKey := strings.TrimSpace(row[idIdx])
+			if idKey != "" && idKey != key {
+				existingID, existsID := costMap[idKey]
+				if !existsID || monthVal == "" || monthVal >= existingID.Month {
+					costMap[idKey] = itemCostInfo{
+						Cost:        cost,
+						ProductName: nameVal,
+						StoreID:     storeVal,
+						Month:       monthVal,
+					}
+				}
+			}
+		}
 	}
 	return costMap, nil
 }
 
-func parseStockLevelCSV(r io.Reader) (map[string]int, error) {
+func parseStockLevelCSV(r io.Reader) (map[string]itemStockInfo, error) {
 	reader := csv.NewReader(r)
 	reader.TrimLeadingSpace = true
 
@@ -547,24 +867,69 @@ func parseStockLevelCSV(r io.Reader) (map[string]int, error) {
 		headerMap[strings.ToLower(strings.TrimSpace(h))] = i
 	}
 
+	idIdx, hasID := headerMap["id"]
 	itemIdx, hasItem := headerMap["item_id"]
 	if !hasItem {
 		itemIdx, hasItem = headerMap["sku"]
 	}
+	if !hasItem {
+		itemIdx, hasItem = headerMap["product_id"]
+	}
+	if !hasItem && hasID {
+		itemIdx = idIdx
+		hasItem = true
+	}
+	if !hasID && hasItem {
+		idIdx = itemIdx
+		hasID = true
+	}
 
-	qtyIdx, hasQty := headerMap["quantity"]
+	qtyIdx, hasQty := headerMap["inventory"]
+	if !hasQty {
+		qtyIdx, hasQty = headerMap["quantity"]
+	}
 	if !hasQty {
 		qtyIdx, hasQty = headerMap["stock_level"]
 	}
 	if !hasQty {
 		qtyIdx, hasQty = headerMap["stock"]
 	}
+	if !hasQty {
+		qtyIdx, hasQty = headerMap["qty"]
+	}
+	if !hasQty {
+		qtyIdx, hasQty = headerMap["stock_quantity"]
+	}
+
+	monthIdx, hasMonth := headerMap["month"]
+	if !hasMonth {
+		monthIdx, hasMonth = headerMap["date_month"]
+	}
+	if !hasMonth {
+		monthIdx, hasMonth = headerMap["date"]
+	}
+
+	nameIdx, hasName := headerMap["product_name"]
+	if !hasName {
+		nameIdx, hasName = headerMap["name"]
+	}
+	if !hasName {
+		nameIdx, hasName = headerMap["item_name"]
+	}
+	if !hasName {
+		nameIdx, hasName = headerMap["title"]
+	}
+
+	storeIdx, hasStore := headerMap["store"]
+	if !hasStore {
+		storeIdx, hasStore = headerMap["store_id"]
+	}
 
 	if !hasItem || !hasQty {
 		return nil, ErrInvalidCSVFormat
 	}
 
-	stockMap := make(map[string]int)
+	stockMap := make(map[string]itemStockInfo)
 	for {
 		row, err := reader.Read()
 		if err == io.EOF {
@@ -576,8 +941,52 @@ func parseStockLevelCSV(r io.Reader) (map[string]int, error) {
 		if len(row) <= itemIdx || len(row) <= qtyIdx {
 			continue
 		}
+
+		key := strings.TrimSpace(row[itemIdx])
+		if key == "" && hasID && len(row) > idIdx {
+			key = strings.TrimSpace(row[idIdx])
+		}
+		if key == "" {
+			continue
+		}
+
 		qty, _ := strconv.Atoi(strings.TrimSpace(row[qtyIdx]))
-		stockMap[strings.TrimSpace(row[itemIdx])] = qty
+
+		var monthVal, nameVal, storeVal string
+		if hasMonth && len(row) > monthIdx {
+			monthVal = strings.TrimSpace(row[monthIdx])
+		}
+		if hasName && len(row) > nameIdx {
+			nameVal = strings.TrimSpace(row[nameIdx])
+		}
+		if hasStore && len(row) > storeIdx {
+			storeVal = strings.TrimSpace(row[storeIdx])
+		}
+
+		existing, exists := stockMap[key]
+		if !exists || monthVal == "" || monthVal >= existing.Month {
+			stockMap[key] = itemStockInfo{
+				Quantity:    qty,
+				ProductName: nameVal,
+				StoreID:     storeVal,
+				Month:       monthVal,
+			}
+		}
+		// Also record by idKey if distinct
+		if hasID && len(row) > idIdx {
+			idKey := strings.TrimSpace(row[idIdx])
+			if idKey != "" && idKey != key {
+				existingID, existsID := stockMap[idKey]
+				if !existsID || monthVal == "" || monthVal >= existingID.Month {
+					stockMap[idKey] = itemStockInfo{
+						Quantity:    qty,
+						ProductName: nameVal,
+						StoreID:     storeVal,
+						Month:       monthVal,
+					}
+				}
+			}
+		}
 	}
 	return stockMap, nil
 }
@@ -596,3 +1005,4 @@ func errorsIs(err, target error) bool {
 	}
 	return err.Error() == target.Error()
 }
+

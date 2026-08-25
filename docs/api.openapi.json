@@ -151,7 +151,7 @@
       "post": {
         "tags": ["Stocks"],
         "summary": "Import Stock Data",
-        "description": "Uploads three CSV files containing monthly sales history, unit costs, and current stock levels. The backend validates the files, forwards the sales CSV to the AI forecasting service (invise-ai-), computes deadstock status and decisions, and persists the results.\n\n**Required CSV columns:**\n- `monthly_sales_data`: `date_month` (YYYY-MM), `store_id`, `item_id`, `monthly_sales`\n- `unit_cost_data`: `item_id`, `unit_cost` (or `sell_price`/`price`)\n- `stock_level_data`: `item_id`, `quantity` (or `stock_level`/`stock`)",
+        "description": "Uploads three CSV files containing monthly sales history, unit costs, and current stock levels. The backend validates the files, forwards the sales CSV to the AI forecasting service (invise-ai-), computes deadstock status and decisions, and persists the results.\n\n**Accepted CSV columns:**\n- `monthly_sales_data`: `date_month` (or `month`), `id`, `item_id` (or `sku`), `store_id` (or `store`), `monthly_sales` (or `sales`)\n- `unit_cost_data`: `id` / `item_id` / `sku`, `modal` / `unit_cost` / `sell_price` / `cost` / `price` (optional `month`, `product_name`, `store`)\n- `stock_level_data`: `id` / `item_id` / `sku`, `inventory` / `quantity` / `stock_level` / `stock` (optional `month`, `product_name`, `store`)",
         "deprecated": false,
         "parameters": [],
         "requestBody": {
@@ -164,17 +164,17 @@
                   "monthly_sales_data": {
                     "type": "string",
                     "format": "binary",
-                    "description": "CSV with columns: date_month, store_id, item_id, monthly_sales"
+                    "description": "CSV with columns: date_month, store_id, item_id, monthly_sales (supports evaluation CSV with id, dept_id, cat_id, state_id)"
                   },
                   "unit_cost_data": {
                     "type": "string",
                     "format": "binary",
-                    "description": "CSV with columns: item_id, unit_cost"
+                    "description": "CSV with columns: id/item_id, modal/unit_cost (supports item_modal.csv with month, product_name, store)"
                   },
                   "stock_level_data": {
                     "type": "string",
                     "format": "binary",
-                    "description": "CSV with columns: item_id, quantity"
+                    "description": "CSV with columns: id/item_id, inventory/quantity (supports item_inventory.csv with month, product_name, store)"
                   }
                 },
                 "required": ["monthly_sales_data", "unit_cost_data", "stock_level_data"]

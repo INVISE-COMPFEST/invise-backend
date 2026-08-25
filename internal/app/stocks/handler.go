@@ -1,6 +1,7 @@
 package stocks
 
 import (
+	"mime/multipart"
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
@@ -31,21 +32,30 @@ func (h *StockHandler) getUserID(c fiber.Ctx) (string, error) {
 	return userID, nil
 }
 
+func getFormFile(c fiber.Ctx, fieldNames ...string) (*multipart.FileHeader, error) {
+	for _, name := range fieldNames {
+		if header, err := c.FormFile(name); err == nil && header != nil {
+			return header, nil
+		}
+	}
+	return nil, ErrMissingImportFiles
+}
+
 func (h *StockHandler) Import(c fiber.Ctx) error {
 	userID, err := h.getUserID(c)
 	if err != nil {
 		return err
 	}
 
-	salesHeader, err := c.FormFile("monthly_sales_data")
+	salesHeader, err := getFormFile(c, "monthly_sales_data", "sales_data", "sales", "file", "monthly_sales")
 	if err != nil {
 		return ErrMissingImportFiles
 	}
-	costHeader, err := c.FormFile("unit_cost_data")
+	costHeader, err := getFormFile(c, "unit_cost_data", "cost_data", "item_modal", "modal", "unit_cost", "cost")
 	if err != nil {
 		return ErrMissingImportFiles
 	}
-	stockLevelHeader, err := c.FormFile("stock_level_data")
+	stockLevelHeader, err := getFormFile(c, "stock_level_data", "inventory_data", "item_inventory", "inventory", "stock_level", "stock")
 	if err != nil {
 		return ErrMissingImportFiles
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
+	"os"
 	"strings"
 	"testing"
 
@@ -243,6 +245,183 @@ func TestStockUsecase_Import(t *testing.T) {
 		var appErr *pkgerr.AppError
 		assert.True(t, errors.As(err, &appErr))
 		assert.Equal(t, "IMPORT_FAILED", appErr.Code)
+	})
+
+	t.Run("Invise-AI Evaluation CSV Format (modal, inventory, product_name, store, multi-month)", func(t *testing.T) {
+		salesCSV := strings.Join([]string{
+			`"date_month","id","item_id","dept_id","cat_id","store_id","state_id","monthly_sales"`,
+			`"2011-01","FOODS_1_035_CA_1_evaluation","FOODS_1_035","FOODS_1","FOODS","CA_1","CA","9"`,
+			`"2011-02","FOODS_1_035_CA_1_evaluation","FOODS_1_035","FOODS_1","FOODS","CA_1","CA","12"`,
+			`"2011-01","FOODS_1_041_CA_1_evaluation","FOODS_1_041","FOODS_1","FOODS","CA_1","CA","2"`,
+		}, "\n")
+
+		costCSV := strings.Join([]string{
+			`"month","id","modal","product_name","store"`,
+			`"2011-01","FOODS_1_035_CA_1_evaluation","14.36","FOODS 1 035","CA_1"`,
+			`"2011-02","FOODS_1_035_CA_1_evaluation","71.29","FOODS 1 035","CA_1"`,
+			`"2011-01","FOODS_1_041_CA_1_evaluation","47.04","FOODS 1 041","CA_1"`,
+		}, "\n")
+
+		stockCSV := strings.Join([]string{
+			`"month","id","inventory","product_name","store"`,
+			`"2011-01","FOODS_1_035_CA_1_evaluation","17","FOODS 1 035","CA_1"`,
+			`"2011-02","FOODS_1_035_CA_1_evaluation","65","FOODS 1 035","CA_1"`,
+			`"2011-01","FOODS_1_041_CA_1_evaluation","49","FOODS 1 041","CA_1"`,
+		}, "\n")
+
+		var savedStock *stocks.Stock
+		var savedItems []stocks.Item
+
+		repo := &stubStockRepository{
+			createStockWithItemsFn: func(ctx context.Context, stock *stocks.Stock, items []stocks.Item) error {
+				savedStock = stock
+				savedItems = items
+				return nil
+			},
+		}
+
+		aiClient := &stubAIClient{
+			predictFn: func(ctx context.Context, salesCSV io.Reader, filename string, includeSummary, includeFeatureImportance bool, topNFeatures int) (*ai.AIPredictResponse, error) {
+				return &ai.AIPredictResponse{
+					Status:        "success",
+					ForecastMonth: "2016-06",
+					SeriesCount:   2,
+					Summary: ai.AISummary{
+						TotalForecast: 80.0,
+						MeanForecast:  40.0,
+					},
+					Predictions: []ai.AIPredictionItem{
+						{
+							ID:                    "FOODS_1_035_CA_1_evaluation",
+							ItemID:                "FOODS_1_035",
+							StoreID:               "CA_1",
+							PredictedMonthlySales: 50.0,
+						},
+						{
+							ID:                    "FOODS_1_041_CA_1_evaluation",
+							ItemID:                "FOODS_1_041",
+							StoreID:               "CA_1",
+							PredictedMonthlySales: 30.0,
+						},
+					},
+				}, nil
+			},
+		}
+
+		uc := stocks.NewStockUsecase(repo, aiClient, &stubULID{})
+		res, err := uc.Import(ctx, "user-456", strings.NewReader(salesCSV), strings.NewReader(costCSV), strings.NewReader(stockCSV), "sales_sample.csv")
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 2, res.ItemCount)
+		assert.Equal(t, "2016-06", res.ForecastMonth)
+
+		require.NotNil(t, savedStock)
+		assert.Equal(t, "user-456", savedStock.UserID)
+		assert.Equal(t, 80.0, savedStock.TotalForecast)
+		assert.Equal(t, 40.0, savedStock.MeanForecast)
+
+		require.Len(t, savedItems, 2)
+
+		// Items should be sorted by SKU
+		item035 := savedItems[0]
+		assert.Equal(t, "FOODS_1_035", item035.SKU)
+		assert.Equal(t, "FOODS 1 035", item035.Name)
+		assert.Equal(t, "CA_1", item035.StoreID)
+		assert.Equal(t, 65, item035.Quantity) // latest month inventory
+		assert.Equal(t, 71.29, item035.UnitCost) // latest month modal
+		assert.Equal(t, math.Round(65*71.29*100)/100, item035.ValueLocked)
+		assert.Equal(t, 50.0, item035.PredictedSales)
+		assert.NotEmpty(t, item035.ProjectionPointsJSON)
+
+		item041 := savedItems[1]
+		assert.Equal(t, "FOODS_1_041", item041.SKU)
+		assert.Equal(t, "FOODS 1 041", item041.Name)
+		assert.Equal(t, "CA_1", item041.StoreID)
+		assert.Equal(t, 49, item041.Quantity)
+		assert.Equal(t, 47.04, item041.UnitCost)
+		assert.Equal(t, 30.0, item041.PredictedSales)
+	})
+
+	t.Run("Actual Evaluation Files from invise-ai", func(t *testing.T) {
+		salesPath := "/home/alex/Code/invise-ai-/Data/M5 Forecasting - Accuracy/evaluation/CA_1_store_2011-01_2016-05_500_sample.csv"
+		invPath := "/home/alex/Code/invise-ai-/Data/M5 Forecasting - Accuracy/evaluation/item_inventory.csv"
+		modalPath := "/home/alex/Code/invise-ai-/Data/M5 Forecasting - Accuracy/evaluation/item_modal.csv"
+
+		salesFile, err := os.Open(salesPath)
+		if err != nil {
+			t.Skip("evaluation files not accessible, skipping live file test")
+			return
+		}
+		defer salesFile.Close()
+
+		invFile, err := os.Open(invPath)
+		if err != nil {
+			t.Skip("inventory file not accessible, skipping live file test")
+			return
+		}
+		defer invFile.Close()
+
+		modalFile, err := os.Open(modalPath)
+		if err != nil {
+			t.Skip("modal file not accessible, skipping live file test")
+			return
+		}
+		defer modalFile.Close()
+
+		var savedStock *stocks.Stock
+		var savedItems []stocks.Item
+
+		repo := &stubStockRepository{
+			createStockWithItemsFn: func(ctx context.Context, stock *stocks.Stock, items []stocks.Item) error {
+				savedStock = stock
+				savedItems = items
+				return nil
+			},
+		}
+
+		aiClient := &stubAIClient{
+			predictFn: func(ctx context.Context, salesCSV io.Reader, filename string, includeSummary, includeFeatureImportance bool, topNFeatures int) (*ai.AIPredictResponse, error) {
+				return &ai.AIPredictResponse{
+					Status:        "success",
+					ForecastMonth: "2016-06",
+					SeriesCount:   57,
+					Summary: ai.AISummary{
+						TotalForecast: 2063.33,
+						MeanForecast:  36.20,
+					},
+					Predictions: []ai.AIPredictionItem{
+						{
+							ID:                    "FOODS_1_035_CA_1_evaluation",
+							ItemID:                "FOODS_1_035",
+							StoreID:               "CA_1",
+							PredictedMonthlySales: 40.51,
+						},
+					},
+				}, nil
+			},
+		}
+
+		uc := stocks.NewStockUsecase(repo, aiClient, &stubULID{})
+		res, err := uc.Import(ctx, "user-eval", salesFile, modalFile, invFile, "CA_1_store_2011-01_2016-05_500_sample.csv")
+
+		require.NoError(t, err)
+		require.NotNil(t, res)
+		assert.Equal(t, 57, res.ItemCount)
+		assert.Equal(t, "2016-06", res.ForecastMonth)
+
+		require.NotNil(t, savedStock)
+		assert.Equal(t, "user-eval", savedStock.UserID)
+		assert.Equal(t, 2063.33, savedStock.TotalForecast)
+
+		require.Len(t, savedItems, 57)
+		// Check that each item has a valid name, store_id, quantity > 0, unit_cost > 0
+		for _, it := range savedItems {
+			assert.NotEmpty(t, it.SKU)
+			assert.NotEmpty(t, it.Name)
+			assert.Equal(t, "CA_1", it.StoreID)
+			assert.Greater(t, it.Quantity, 0)
+		}
 	})
 }
 
