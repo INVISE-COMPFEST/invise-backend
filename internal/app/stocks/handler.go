@@ -205,19 +205,4 @@ func (h *StockHandler) GetStockProjection(c fiber.Ctx) error {
 	})
 }
 
-func (h *StockHandler) GetMarketContext(c fiber.Ctx) error {
-	userID, err := h.getUserID(c)
-	if err != nil {
-		return err
-	}
 
-	marketCtx, err := h.usecase.GetMarketContext(c.Context(), userID)
-	if err != nil {
-		return err
-	}
-
-	return c.Status(fiber.StatusOK).JSON(dto.Response[*MarketContextResponse]{
-		Message: "market context retrieved successfully",
-		Data:    marketCtx,
-	})
-}

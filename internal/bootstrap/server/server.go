@@ -80,8 +80,6 @@ func (s *Server) registerRoutes() {
 	stocksGroup.Get("/:stock_id/projection", stockHandler.GetStockProjection)
 	stocksGroup.Get("/:stock_id", stockHandler.GetStockItems)
 
-	marketGroup := api.Group("/market", authMiddleware)
-	marketGroup.Get("/context", stockHandler.GetMarketContext)
 
 	// Health
 	s.app.Get("/health", func(c fiber.Ctx) error {

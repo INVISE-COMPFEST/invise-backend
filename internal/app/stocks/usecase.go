@@ -25,7 +25,6 @@ type StockUsecaseI interface {
 	GetItemDetail(ctx context.Context, userID, itemID string) (*ItemDetailResponse, error)
 	GetItemDiagnose(ctx context.Context, userID, itemID string) (*ItemDiagnoseResponse, error)
 	GetStockProjection(ctx context.Context, userID, stockID string, rangeVal int) ([]StockProjectionItemResponse, error)
-	GetMarketContext(ctx context.Context, userID string) (*MarketContextResponse, error)
 }
 
 type stockUsecase struct {
@@ -532,44 +531,6 @@ func (u *stockUsecase) GetStockProjection(ctx context.Context, userID, stockID s
 	return res, nil
 }
 
-// stub
-func (u *stockUsecase) GetMarketContext(ctx context.Context, userID string) (*MarketContextResponse, error) {
-	stock, err := u.repo.FindLatestStockByUserID(ctx, userID)
-	if err != nil {
-		return nil, pkgerr.InternalServerError("DATABASE_ERROR", "failed to retrieve market context")
-	}
-
-	if stock == nil || len(stock.Items) == 0 {
-		return &MarketContextResponse{
-			Context:    "Overall market inventory trends remain balanced with healthy turnover expectations across standard categories.",
-			Confidence: 0.85,
-		}, nil
-	}
-
-	var deadstockCount, totalItems int
-	for _, it := range stock.Items {
-		totalItems++
-		if it.DeadstockStatus == "DEADSTOCK" || it.DeadstockStatus == "SLOW_MOVING" {
-			deadstockCount++
-		}
-	}
-
-	deadstockRatio := float64(deadstockCount) / float64(totalItems)
-	var narrative string
-	confidence := 0.88
-
-	if deadstockRatio > 0.4 {
-		narrative = fmt.Sprintf("High inventory retention observed in %d%% of catalog items. Market demand signals recommend targeted discount campaigns and liquidation to mitigate carrying costs.", int(deadstockRatio*100))
-		confidence = 0.92
-	} else {
-		narrative = fmt.Sprintf("Demand forecasting for %s indicates steady consumer traction with %d healthy performing items. Recommended actions focus on timely restocking of core product lines.", stock.ForecastMonth, totalItems-deadstockCount)
-	}
-
-	return &MarketContextResponse{
-		Context:    narrative,
-		Confidence: confidence,
-	}, nil
-}
 
 // Helpers
 

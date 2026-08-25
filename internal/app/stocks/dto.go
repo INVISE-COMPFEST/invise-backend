@@ -40,10 +40,6 @@ type StockProjectionItemResponse struct {
 	Decision             string      `json:"decision"`
 }
 
-type MarketContextResponse struct {
-	Context    string  `json:"context"`
-	Confidence float64 `json:"confidence"`
-}
 
 type ImportResponse struct {
 	StockID       string `json:"stock_id"`

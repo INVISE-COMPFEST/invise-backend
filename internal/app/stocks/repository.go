@@ -53,7 +53,6 @@ type StockRepositoryI interface {
 	FindStockByID(ctx context.Context, userID, stockID string) (*Stock, error)
 	FindItemsByStockID(ctx context.Context, userID, stockID string) ([]Item, error)
 	FindItemByID(ctx context.Context, userID, itemID string) (*Item, error)
-	FindLatestStockByUserID(ctx context.Context, userID string) (*Stock, error)
 }
 
 type stockRepository struct {
@@ -134,18 +133,3 @@ func (r *stockRepository) FindItemByID(ctx context.Context, userID, itemID strin
 	return &item, nil
 }
 
-func (r *stockRepository) FindLatestStockByUserID(ctx context.Context, userID string) (*Stock, error) {
-	var stock Stock
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Preload("Items").
-		First(&stock).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &stock, nil
-}

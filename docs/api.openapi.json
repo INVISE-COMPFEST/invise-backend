@@ -7,8 +7,7 @@
   },
   "tags": [
     { "name": "Auth", "description": "Registration, verification, and login" },
-    { "name": "Stocks", "description": "Import and query inventory stock data" },
-    { "name": "Market", "description": "AI-derived market context and trends" }
+    { "name": "Stocks", "description": "Import and query inventory stock data" }
   ],
   "paths": {
     "/api/v1/auth/register": {
@@ -469,47 +468,6 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" }
-        },
-        "security": [{ "bearer": [] }]
-      }
-    },
-    "/api/v1/market/context": {
-      "get": {
-        "tags": ["Market"],
-        "summary": "Market Context",
-        "description": "Derives a market narrative and confidence score from the user's latest stock batch. Uses aggregate forecast statistics (deadstock ratio, healthy item count, forecast month) to generate an inventory health summary.",
-        "deprecated": false,
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Market context retrieved.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": { "type": "string", "example": "market context retrieved successfully" },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "context": {
-                          "type": "string",
-                          "example": "Demand forecasting for 2016-06 indicates steady consumer traction with 8 healthy performing items."
-                        },
-                        "confidence": {
-                          "type": "number",
-                          "example": 0.88
-                        }
-                      },
-                      "required": ["context", "confidence"]
-                    }
-                  },
-                  "required": ["message", "data"]
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
         },
         "security": [{ "bearer": [] }]
       }

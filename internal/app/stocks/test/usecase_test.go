@@ -23,7 +23,6 @@ type stubStockRepository struct {
 	findStockByIDFn        func(ctx context.Context, userID, stockID string) (*stocks.Stock, error)
 	findItemsByStockIDFn   func(ctx context.Context, userID, stockID string) ([]stocks.Item, error)
 	findItemByIDFn         func(ctx context.Context, userID, itemID string) (*stocks.Item, error)
-	findLatestStockFn      func(ctx context.Context, userID string) (*stocks.Stock, error)
 }
 
 func (s *stubStockRepository) CreateStockWithItems(ctx context.Context, stock *stocks.Stock, items []stocks.Item) error {
@@ -57,13 +56,6 @@ func (s *stubStockRepository) FindItemsByStockID(ctx context.Context, userID, st
 func (s *stubStockRepository) FindItemByID(ctx context.Context, userID, itemID string) (*stocks.Item, error) {
 	if s.findItemByIDFn != nil {
 		return s.findItemByIDFn(ctx, userID, itemID)
-	}
-	return nil, nil
-}
-
-func (s *stubStockRepository) FindLatestStockByUserID(ctx context.Context, userID string) (*stocks.Stock, error) {
-	if s.findLatestStockFn != nil {
-		return s.findLatestStockFn(ctx, userID)
 	}
 	return nil, nil
 }
@@ -603,59 +595,3 @@ func TestStockUsecase_GetStockProjection(t *testing.T) {
 	})
 }
 
-func TestStockUsecase_GetMarketContext(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("Default Context when no stocks exist", func(t *testing.T) {
-		repo := &stubStockRepository{
-			findLatestStockFn: func(ctx context.Context, userID string) (*stocks.Stock, error) {
-				return nil, nil
-			},
-		}
-		uc := stocks.NewStockUsecase(repo, &stubAIClient{}, &stubULID{})
-		res, err := uc.GetMarketContext(ctx, "user-123")
-
-		require.NoError(t, err)
-		assert.NotEmpty(t, res.Context)
-		assert.Equal(t, 0.85, res.Confidence)
-	})
-
-	t.Run("Context derived from healthy stock", func(t *testing.T) {
-		repo := &stubStockRepository{
-			findLatestStockFn: func(ctx context.Context, userID string) (*stocks.Stock, error) {
-				return &stocks.Stock{
-					ForecastMonth: "2016-06",
-					Items: []stocks.Item{
-						{DeadstockStatus: "HEALTHY"},
-						{DeadstockStatus: "HEALTHY"},
-					},
-				}, nil
-			},
-		}
-		uc := stocks.NewStockUsecase(repo, &stubAIClient{}, &stubULID{})
-		res, err := uc.GetMarketContext(ctx, "user-123")
-
-		require.NoError(t, err)
-		assert.Contains(t, res.Context, "steady consumer traction")
-	})
-
-	t.Run("Context derived from high deadstock", func(t *testing.T) {
-		repo := &stubStockRepository{
-			findLatestStockFn: func(ctx context.Context, userID string) (*stocks.Stock, error) {
-				return &stocks.Stock{
-					ForecastMonth: "2016-06",
-					Items: []stocks.Item{
-						{DeadstockStatus: "DEADSTOCK"},
-						{DeadstockStatus: "DEADSTOCK"},
-					},
-				}, nil
-			},
-		}
-		uc := stocks.NewStockUsecase(repo, &stubAIClient{}, &stubULID{})
-		res, err := uc.GetMarketContext(ctx, "user-123")
-
-		require.NoError(t, err)
-		assert.Contains(t, res.Context, "High inventory retention")
-		assert.Equal(t, 0.92, res.Confidence)
-	})
-}

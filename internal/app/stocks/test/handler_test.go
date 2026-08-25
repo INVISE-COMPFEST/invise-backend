@@ -26,7 +26,6 @@ type stubStockUsecase struct {
 	getItemDetailFn      func(ctx context.Context, userID, itemID string) (*stocks.ItemDetailResponse, error)
 	getItemDiagnoseFn    func(ctx context.Context, userID, itemID string) (*stocks.ItemDiagnoseResponse, error)
 	getStockProjectionFn func(ctx context.Context, userID, stockID string, rangeVal int) ([]stocks.StockProjectionItemResponse, error)
-	getMarketContextFn   func(ctx context.Context, userID string) (*stocks.MarketContextResponse, error)
 }
 
 func (s *stubStockUsecase) Import(ctx context.Context, userID string, salesFile, costFile, stockLevelFile io.Reader, salesFilename string) (*stocks.ImportResponse, error) {
@@ -104,15 +103,6 @@ func (s *stubStockUsecase) GetStockProjection(ctx context.Context, userID, stock
 	}, nil
 }
 
-func (s *stubStockUsecase) GetMarketContext(ctx context.Context, userID string) (*stocks.MarketContextResponse, error) {
-	if s.getMarketContextFn != nil {
-		return s.getMarketContextFn(ctx, userID)
-	}
-	return &stocks.MarketContextResponse{
-		Context:    "Steady retail momentum",
-		Confidence: 0.88,
-	}, nil
-}
 
 func testErrorHandler(c fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
@@ -147,7 +137,6 @@ func setupStockTestApp(h *stocks.StockHandler, mockUserID string) *fiber.App {
 	app.Get("/api/v1/stocks/items/:items_id/diagnose", h.GetItemDiagnose)
 	app.Get("/api/v1/stocks/:stock_id/projection", h.GetStockProjection)
 	app.Get("/api/v1/stocks/:stock_id", h.GetStockItems)
-	app.Get("/api/v1/market/context", h.GetMarketContext)
 
 	return app
 }
@@ -306,23 +295,3 @@ func TestStockHandler_GetStockProjection(t *testing.T) {
 	assert.Equal(t, "RESTOCK", resBody.Data[0].Decision)
 }
 
-func TestStockHandler_GetMarketContext(t *testing.T) {
-	uc := &stubStockUsecase{}
-	handler := stocks.NewStockHandler(uc)
-	app := setupStockTestApp(handler, "user-123")
-
-	req, _ := http.NewRequest("GET", "/api/v1/market/context", nil)
-	resp, err := app.Test(req)
-
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
-
-	var resBody struct {
-		Message string                       `json:"message"`
-		Data    stocks.MarketContextResponse `json:"data"`
-	}
-	_ = json.NewDecoder(resp.Body).Decode(&resBody)
-	assert.Equal(t, "market context retrieved successfully", resBody.Message)
-	assert.Equal(t, "Steady retail momentum", resBody.Data.Context)
-	assert.Equal(t, 0.88, resBody.Data.Confidence)
-}
