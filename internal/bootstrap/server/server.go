@@ -12,8 +12,10 @@ import (
 	"gorm.io/gorm"
 
 	"invise-backend/internal/app/auth"
+	"invise-backend/internal/app/stocks"
 	"invise-backend/internal/bootstrap/config"
 	"invise-backend/internal/middleware"
+	"invise-backend/pkg/ai"
 	"invise-backend/pkg/response"
 	pkgerr "invise-backend/pkg/errors"
 	pkgjwt "invise-backend/pkg/jwt"
@@ -47,11 +49,14 @@ func New(cfg config.Config, db *gorm.DB, rdb *redis.Client) *Server {
 func (s *Server) registerRoutes() {
 	api := s.app.Group("/api/v1")
 
-	// Auth
+	// Shared services
 	jwtSvc := pkgjwt.New(s.cfg.JWT.Secret, s.cfg.JWT.ExpiryMinutes)
 	passSvc := pkgpassword.New()
 	ulidSvc := pkgulid.New()
 	mailer := pkgmail.New(s.cfg.SMTP.Host, s.cfg.SMTP.Port, s.cfg.SMTP.Username, s.cfg.SMTP.Password, s.cfg.SMTP.From)
+	aiClient := ai.NewClient(s.cfg.AI.URL, s.cfg.AI.TimeoutSeconds)
+
+	// Auth
 	userRepo := auth.NewUserRepository(s.db)
 	authUsecase := auth.NewAuthUsecase(userRepo, jwtSvc, passSvc, ulidSvc, mailer, s.rdb, s.cfg.OTP)
 	authHandler := auth.NewAuthHandler(authUsecase, validator.New())
@@ -61,8 +66,22 @@ func (s *Server) registerRoutes() {
 	authGroup.Post("/verify", authHandler.Verify)
 	authGroup.Post("/login", authHandler.Login)
 
-	// Protected routes (no role restriction — any authenticated user)
-	_ = middleware.RequiredRoles(jwtSvc) // reserved for future protected routes
+	// Stocks & Market (Protected)
+	authMiddleware := middleware.RequiredRoles(jwtSvc)
+	stockRepo := stocks.NewStockRepository(s.db)
+	stockUsecase := stocks.NewStockUsecase(stockRepo, aiClient, ulidSvc)
+	stockHandler := stocks.NewStockHandler(stockUsecase)
+
+	stocksGroup := api.Group("/stocks", authMiddleware)
+	stocksGroup.Post("/import", stockHandler.Import)
+	stocksGroup.Get("/", stockHandler.ListStocks)
+	stocksGroup.Get("/items/:items_id", stockHandler.GetItemDetail)
+	stocksGroup.Get("/items/:items_id/diagnose", stockHandler.GetItemDiagnose)
+	stocksGroup.Get("/:stock_id/projection", stockHandler.GetStockProjection)
+	stocksGroup.Get("/:stock_id", stockHandler.GetStockItems)
+
+	marketGroup := api.Group("/market", authMiddleware)
+	marketGroup.Get("/context", stockHandler.GetMarketContext)
 
 	// Health
 	s.app.Get("/health", func(c fiber.Ctx) error {

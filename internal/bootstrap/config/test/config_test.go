@@ -39,6 +39,8 @@ func TestLoad(t *testing.T) {
 		"LOG_FILE_PATH":      "/tmp/test.log",
 		"VALKEY_HOST":        "valkey",
 		"VALKEY_PORT":        "6379",
+		"AI_SERVICE_URL":     "http://ai-service:5000",
+		"AI_SERVICE_TIMEOUT_SECONDS": "90",
 	}
 
 	for k, v := range env {
@@ -136,6 +138,12 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.Valkey.Port != "6379" {
 		t.Errorf("Valkey.Port = %q, want %q", cfg.Valkey.Port, "6379")
+	}
+	if cfg.AI.URL != "http://ai-service:5000" {
+		t.Errorf("AI.URL = %q, want %q", cfg.AI.URL, "http://ai-service:5000")
+	}
+	if cfg.AI.TimeoutSeconds != 90 {
+		t.Errorf("AI.TimeoutSeconds = %d, want %d", cfg.AI.TimeoutSeconds, 90)
 	}
 }
 

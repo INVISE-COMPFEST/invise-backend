@@ -34,6 +34,8 @@ services:
       SMTP_FROM: "${SMTP_FROM:-}"
       SEEDER_EMAIL: "${SEEDER_EMAIL}"
       SEEDER_PASSWORD: "${SEEDER_PASSWORD}"
+      AI_SERVICE_URL: "${AI_SERVICE_URL:-http://tft-forecasting-api:5000}"
+      AI_SERVICE_TIMEOUT_SECONDS: "${AI_SERVICE_TIMEOUT_SECONDS:-60}"
     ports:
       - "8080:8080" # Disable this in production, use nginx to reverse proxy the app instead
     depends_on:

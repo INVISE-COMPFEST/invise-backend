@@ -17,6 +17,7 @@ type Config struct {
 	Seeder SeederConfig
 	Log    LogConfig
 	Valkey ValkeyConfig
+	AI     AIConfig
 }
 
 type AppConfig struct {
@@ -78,6 +79,11 @@ type ValkeyConfig struct {
 	DB       int
 }
 
+type AIConfig struct {
+	URL            string
+	TimeoutSeconds int
+}
+
 // Load reads configuration from environment variables and .env file.
 // Environment variables take precedence over .env file values.
 func Load() Config {
@@ -133,6 +139,10 @@ func Load() Config {
 			Port:     getEnv("VALKEY_PORT", "6379"),
 			Password: getEnv("VALKEY_PASSWORD", ""),
 			DB:       getEnvInt("VALKEY_DB", 0),
+		},
+		AI: AIConfig{
+			URL:            getEnv("AI_SERVICE_URL", "http://localhost:5000"),
+			TimeoutSeconds: getEnvInt("AI_SERVICE_TIMEOUT_SECONDS", 60),
 		},
 	}
 }

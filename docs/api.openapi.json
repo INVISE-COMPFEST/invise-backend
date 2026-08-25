@@ -1,692 +1,587 @@
 {
   "openapi": "3.0.1",
   "info": {
-    "title": "Default module",
-    "description": "",
+    "title": "Invise API",
+    "description": "Invise backend API. Protected routes require a Bearer JWT access token obtained via /auth/login.",
     "version": "1.0.0"
   },
-  "tags": [],
+  "tags": [
+    { "name": "Auth", "description": "Registration, verification, and login" },
+    { "name": "Stocks", "description": "Import and query inventory stock data" },
+    { "name": "Market", "description": "AI-derived market context and trends" }
+  ],
   "paths": {
     "/api/v1/auth/register": {
       "post": {
+        "tags": ["Auth"],
         "summary": "Register",
+        "description": "Creates an unverified user account and sends a 6-digit OTP to the provided email. The user must call /auth/verify before they can log in. No access token is returned at this step. (See ADR-001)",
         "deprecated": false,
-        "description": "Register User",
-        "tags": [],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
+                  "password": { "type": "string", "minLength": 8, "example": "password123" }
                 },
-                "required": [
-                  "email",
-                  "password"
-                ]
-              },
-              "examples": {}
+                "required": ["email", "password"]
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
-            "description": "",
+            "description": "Registration successful. OTP email sent.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "access_token": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "access_token"
-                      ]
-                    }
+                    "message": { "type": "string", "example": "registration successful, please check your email for verification code" }
                   },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
+                  "required": ["message"]
                 }
               }
-            },
-            "headers": {}
-          }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" }
         },
         "security": []
       }
     },
     "/api/v1/auth/verify": {
       "post": {
-        "summary": "Verify",
+        "tags": ["Auth"],
+        "summary": "Verify Email",
+        "description": "Verifies the user's email using the OTP sent during registration. Both email and OTP are required because OTPs are stored in Redis keyed by email (`otp:{email}`). (See ADR-001)",
         "deprecated": false,
-        "description": "",
-        "tags": [],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "otp": {
-                    "type": "string"
-                  }
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
+                  "otp": { "type": "string", "minLength": 6, "maxLength": 6, "example": "123456" }
                 },
-                "required": [
-                  "otp"
-                ]
-              },
-              "examples": {}
+                "required": ["email", "otp"]
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "",
+            "description": "Account verified successfully.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
-                    }
+                    "message": { "type": "string", "example": "account verified successfully" }
                   },
-                  "required": [
-                    "message"
-                  ]
+                  "required": ["message"]
                 }
               }
-            },
-            "headers": {}
-          }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         },
         "security": []
       }
     },
     "/api/v1/auth/login": {
       "post": {
+        "tags": ["Auth"],
         "summary": "Login",
+        "description": "Authenticates a verified user and returns a JWT Bearer access token.",
         "deprecated": false,
-        "description": "",
-        "tags": [],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
+                  "email": { "type": "string", "format": "email", "example": "user@example.com" },
+                  "password": { "type": "string", "example": "password123" }
                 },
-                "required": [
-                  "email",
-                  "password"
-                ]
-              },
-              "examples": {}
+                "required": ["email", "password"]
+              }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
-            "description": "",
+            "description": "Login successful.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
-                    },
+                    "message": { "type": "string", "example": "login successful" },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "access_token": {
-                          "type": "string"
-                        }
+                        "access_token": { "type": "string" }
                       },
-                      "required": [
-                        "access_token"
-                      ]
+                      "required": ["access_token"]
                     }
                   },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
+                  "required": ["message", "data"]
                 }
               }
-            },
-            "headers": {}
-          }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         },
         "security": []
       }
     },
     "/api/v1/stocks/import": {
       "post": {
-        "summary": "Import",
+        "tags": ["Stocks"],
+        "summary": "Import Stock Data",
+        "description": "Uploads three CSV files containing monthly sales history, unit costs, and current stock levels. The backend validates the files, forwards the sales CSV to the AI forecasting service (invise-ai-), computes deadstock status and decisions, and persists the results.\n\n**Required CSV columns:**\n- `monthly_sales_data`: `date_month` (YYYY-MM), `store_id`, `item_id`, `monthly_sales`\n- `unit_cost_data`: `item_id`, `unit_cost` (or `sell_price`/`price`)\n- `stock_level_data`: `item_id`, `quantity` (or `stock_level`/`stock`)",
         "deprecated": false,
-        "description": "",
-        "tags": [],
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
                   "monthly_sales_data": {
-                    "example": "",
                     "type": "string",
-                    "format": "binary"
+                    "format": "binary",
+                    "description": "CSV with columns: date_month, store_id, item_id, monthly_sales"
                   },
                   "unit_cost_data": {
-                    "format": "binary",
                     "type": "string",
-                    "example": ""
+                    "format": "binary",
+                    "description": "CSV with columns: item_id, unit_cost"
                   },
                   "stock_level_data": {
-                    "format": "binary",
                     "type": "string",
-                    "example": ""
+                    "format": "binary",
+                    "description": "CSV with columns: item_id, quantity"
                   }
-                }
-              },
-              "example": {
-                "monthly_sales_data": "",
-                "unit_cost_data": "",
-                "stock_level_data": ""
+                },
+                "required": ["monthly_sales_data", "unit_cost_data", "stock_level_data"]
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
-            "description": "",
+            "description": "Import successful. Stock and items persisted with AI predictions.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message"
-                  ]
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/stocks/{stock_id}": {
-      "get": {
-        "summary": "List Stocks Items",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "stock_id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sku": {
-                            "type": "string"
-                          },
-                          "value_locked": {
-                            "type": "string"
-                          },
-                          "quantity": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "deadstock_status": {
-                            "type": "string"
-                          },
-                          "items_id": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "sku",
-                          "name",
-                          "quantity",
-                          "value_locked",
-                          "deadstock_status",
-                          "items_id"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/stocks/items/{items_id}": {
-      "get": {
-        "summary": "Item Details",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "items_id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
+                    "message": { "type": "string", "example": "stock data imported and analyzed successfully" },
                     "data": {
                       "type": "object",
                       "properties": {
-                        "sku": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "quantity": {
-                          "type": "integer"
-                        },
-                        "value_locked": {
-                          "type": "number"
-                        },
-                        "days_in_stock": {
-                          "type": "integer"
-                        },
-                        "last_sale_days": {
-                          "type": "integer"
-                        },
-                        "current_price": {
-                          "type": "number"
-                        },
-                        "stocks_id": {
-                          "type": "string"
-                        }
+                        "stock_id": { "type": "string", "description": "ULID of the created stock batch" },
+                        "item_count": { "type": "integer", "description": "Number of items imported and analyzed" },
+                        "forecast_month": { "type": "string", "example": "2016-06", "description": "Target forecast month returned by AI service" }
                       },
-                      "required": [
-                        "sku",
-                        "name",
-                        "quantity",
-                        "value_locked",
-                        "days_in_stock",
-                        "last_sale_days",
-                        "current_price",
-                        "stocks_id"
-                      ]
+                      "required": ["stock_id", "item_count", "forecast_month"]
                     }
                   },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
+                  "required": ["message", "data"]
                 }
               }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/stocks/items/{items_id}/diagnose": {
-      "get": {
-        "summary": "Item Deadstock Diagnose",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "items_id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "deadstock_status": {
-                          "type": "string"
-                        },
-                        "opportunity_cost": {
-                          "type": "number"
-                        },
-                        "market_average": {
-                          "type": "number"
-                        },
-                        "reasons": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "name": {
-                                "type": "string"
-                              },
-                              "percentage": {
-                                "type": "number"
-                              }
-                            },
-                            "required": [
-                              "name",
-                              "percentage"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "deadstock_status",
-                        "opportunity_cost",
-                        "market_average",
-                        "reasons"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/stocks/{stocks_id}/projection": {
-      "get": {
-        "summary": "Stocks Projections",
-        "deprecated": false,
-        "description": "",
-        "tags": [],
-        "parameters": [
-          {
-            "name": "stocks_id",
-            "in": "path",
-            "description": "",
-            "required": true,
-            "schema": {
-              "type": "string"
             }
           },
-          {
-            "name": "range",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "sku": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "projection_percentage": {
-                            "type": "number"
-                          },
-                          "projection_points": {
-                            "type": "array",
-                            "items": {
-                              "type": "array",
-                              "items": {
-                                "type": "number"
-                              }
-                            }
-                          },
-                          "decision": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "sku",
-                          "name",
-                          "projection_percentage",
-                          "projection_points",
-                          "decision"
-                        ]
-                      }
-                    }
-                  },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
-                }
-              }
-            }
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "502": { "$ref": "#/components/responses/BadGateway" }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "bearer": [] }]
       }
     },
     "/api/v1/stocks": {
       "get": {
-        "summary": "List Stocks",
+        "tags": ["Stocks"],
+        "summary": "List Stock Batches",
+        "description": "Returns a list of stock batch IDs belonging to the authenticated user, ordered by creation date descending.",
         "deprecated": false,
-        "description": "",
-        "tags": [],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
+            "description": "List of stock batch IDs.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string"
-                    },
+                    "message": { "type": "string", "example": "stocks retrieved successfully" },
                     "data": {
                       "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
+                      "items": { "type": "string" },
+                      "description": "Array of stock batch ULIDs"
                     }
                   },
-                  "required": [
-                    "message",
-                    "data"
-                  ]
+                  "required": ["message", "data"]
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         },
-        "security": [
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/v1/stocks/{stock_id}": {
+      "get": {
+        "tags": ["Stocks"],
+        "summary": "List Stock Items",
+        "description": "Returns all inventory items within a specific stock batch, including SKU, quantity, value locked, and deadstock classification.",
+        "deprecated": false,
+        "parameters": [
           {
-            "bearer": []
+            "name": "stock_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ULID of the stock batch"
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock items retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "stock items retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sku": { "type": "string" },
+                          "name": { "type": "string" },
+                          "quantity": { "type": "integer" },
+                          "value_locked": { "type": "number", "description": "quantity × unit_cost" },
+                          "deadstock_status": { "type": "string", "enum": ["HEALTHY", "SLOW_MOVING", "DEADSTOCK"] },
+                          "items_id": { "type": "string", "description": "ULID of the item" }
+                        },
+                        "required": ["sku", "name", "quantity", "value_locked", "deadstock_status", "items_id"]
+                      }
+                    }
+                  },
+                  "required": ["message", "data"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/v1/stocks/items/{items_id}": {
+      "get": {
+        "tags": ["Stocks"],
+        "summary": "Item Details",
+        "description": "Returns full detail for a specific inventory item including pricing, stock age, and days since last sale.",
+        "deprecated": false,
+        "parameters": [
+          {
+            "name": "items_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ULID of the inventory item"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Item details retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "item details retrieved successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sku": { "type": "string" },
+                        "name": { "type": "string" },
+                        "quantity": { "type": "integer" },
+                        "value_locked": { "type": "number" },
+                        "days_in_stock": { "type": "integer" },
+                        "last_sale_days": { "type": "integer" },
+                        "current_price": { "type": "number" },
+                        "stocks_id": { "type": "string", "description": "Parent stock batch ULID" }
+                      },
+                      "required": ["sku", "name", "quantity", "value_locked", "days_in_stock", "last_sale_days", "current_price", "stocks_id"]
+                    }
+                  },
+                  "required": ["message", "data"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/v1/stocks/items/{items_id}/diagnose": {
+      "get": {
+        "tags": ["Stocks"],
+        "summary": "Item Deadstock Diagnosis",
+        "description": "Returns the AI-driven deadstock diagnosis for a specific item: status classification, opportunity cost (carrying cost), market price average, and top feature importances explaining the forecast (sourced from the AI service's attention-based variable importance).",
+        "deprecated": false,
+        "parameters": [
+          {
+            "name": "items_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ULID of the inventory item"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deadstock diagnosis retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "item diagnose retrieved successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deadstock_status": { "type": "string", "enum": ["HEALTHY", "SLOW_MOVING", "DEADSTOCK"] },
+                        "opportunity_cost": { "type": "number", "description": "Estimated carrying/holding cost (value_locked × 0.15)" },
+                        "market_average": { "type": "number", "description": "Average unit cost across all items in the batch" },
+                        "reasons": {
+                          "type": "array",
+                          "description": "Top TFT attention-based feature importances explaining the forecast",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string", "example": "Riwayat Penjualan Bulanan" },
+                              "percentage": { "type": "number", "example": 45.2 }
+                            },
+                            "required": ["name", "percentage"]
+                          }
+                        }
+                      },
+                      "required": ["deadstock_status", "opportunity_cost", "market_average", "reasons"]
+                    }
+                  },
+                  "required": ["message", "data"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        },
+        "security": [{ "bearer": [] }]
+      }
+    },
+    "/api/v1/stocks/{stock_id}/projection": {
+      "get": {
+        "tags": ["Stocks"],
+        "summary": "Stock Projections",
+        "description": "Returns AI-driven demand forecasting projections for all items in a stock batch. Each item includes historical + forecasted sales time-series points, a projection percentage (predicted vs current stock), and a decision recommendation (RESTOCK, HOLD, DISCOUNT, LIQUIDATE).",
+        "deprecated": false,
+        "parameters": [
+          {
+            "name": "stock_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "ULID of the stock batch"
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1 },
+            "description": "Forecast horizon in months (default: 1)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock projections retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "stock projections retrieved successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sku": { "type": "string" },
+                          "name": { "type": "string" },
+                          "projection_percentage": {
+                            "type": "number",
+                            "description": "((predicted_sales - quantity) / quantity) × 100"
+                          },
+                          "projection_points": {
+                            "type": "array",
+                            "description": "Time-series of [month_index, sales_value] pairs",
+                            "items": {
+                              "type": "array",
+                              "items": { "type": "number" }
+                            }
+                          },
+                          "decision": {
+                            "type": "string",
+                            "enum": ["RESTOCK", "HOLD", "DISCOUNT", "LIQUIDATE"]
+                          }
+                        },
+                        "required": ["sku", "name", "projection_percentage", "projection_points", "decision"]
+                      }
+                    }
+                  },
+                  "required": ["message", "data"]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        },
+        "security": [{ "bearer": [] }]
       }
     },
     "/api/v1/market/context": {
       "get": {
-        "summary": "External Market Context",
+        "tags": ["Market"],
+        "summary": "Market Context",
+        "description": "Derives a market narrative and confidence score from the user's latest stock batch. Uses aggregate forecast statistics (deadstock ratio, healthy item count, forecast month) to generate an inventory health summary.",
         "deprecated": false,
-        "description": "",
-        "tags": [],
         "parameters": [],
         "responses": {
           "200": {
-            "description": "",
+            "description": "Market context retrieved.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "context": {
-                      "type": "string"
-                    },
-                    "confidence": {
-                      "type": "number"
+                    "message": { "type": "string", "example": "market context retrieved successfully" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "context": {
+                          "type": "string",
+                          "example": "Demand forecasting for 2016-06 indicates steady consumer traction with 8 healthy performing items."
+                        },
+                        "confidence": {
+                          "type": "number",
+                          "example": 0.88
+                        }
+                      },
+                      "required": ["context", "confidence"]
                     }
                   },
-                  "required": [
-                    "context",
-                    "confidence"
-                  ]
+                  "required": ["message", "data"]
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         },
-        "security": [
-          {
-            "bearer": []
-          }
-        ]
+        "security": [{ "bearer": [] }]
       }
     }
   },
   "components": {
-    "schemas": {},
-    "responses": {},
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" }
+        },
+        "required": ["message"]
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request — invalid payload or CSV format.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized — missing or invalid Bearer token.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflict — resource already exists (e.g. email taken).",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found — resource does not exist or does not belong to the authenticated user.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "BadGateway": {
+        "description": "Bad gateway — AI service (invise-ai-) is unreachable or returned an error.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "bearer": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },
-  "servers": [],
-  "security": [
+  "servers": [
     {
-      "bearer": []
+      "url": "http://localhost:8080",
+      "description": "Local development"
     }
+  ],
+  "security": [
+    { "bearer": [] }
   ]
 }

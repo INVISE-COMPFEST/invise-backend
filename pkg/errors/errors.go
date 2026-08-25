@@ -45,6 +45,14 @@ func InternalServerError(code, message string) *AppError {
 	return New(http.StatusInternalServerError, code, message, nil)
 }
 
+func BadGateway(code, message string) *AppError {
+	return New(http.StatusBadGateway, code, message, nil)
+}
+
+func ServiceUnavailable(code, message string) *AppError {
+	return New(http.StatusServiceUnavailable, code, message, nil)
+}
+
 // Global sentinel errors
 var (
 	ErrInvalidRequest      = BadRequest("INVALID_REQUEST", "invalid request body")
