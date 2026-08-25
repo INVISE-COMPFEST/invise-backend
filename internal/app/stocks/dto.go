@@ -14,8 +14,6 @@ type ItemDetailResponse struct {
 	Name         string  `json:"name"`
 	Quantity     int     `json:"quantity"`
 	ValueLocked  float64 `json:"value_locked"`
-	DaysInStock  int     `json:"days_in_stock"`
-	LastSaleDays int     `json:"last_sale_days"`
 	CurrentPrice float64 `json:"current_price"`
 	StocksID     string  `json:"stocks_id"`
 }

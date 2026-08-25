@@ -294,31 +294,10 @@ func (u *stockUsecase) Import(
 		sumPredictedSales += predictedSales
 
 		history := itemHistory[itemID]
-		var avgSales float64
-		if len(history) > 0 {
-			var sumSales float64
-			for _, s := range history {
-				sumSales += s
-			}
-			avgSales = sumSales / float64(len(history))
-		}
-
-		// Estimate days in stock & last sale days
-		daysInStock := 30
-		if avgSales > 0 && qty > 0 {
-			daysInStock = int((float64(qty) / avgSales) * 30)
-		} else if qty > 0 {
-			daysInStock = 90
-		}
-
-		lastSaleDays := 15
-		if len(history) > 0 && history[len(history)-1] == 0 {
-			lastSaleDays = 45
-		}
 
 		// Deadstock Status determination
 		deadstockStatus := "HEALTHY"
-		if qty > 0 && (predictedSales <= 0.1*float64(qty) || daysInStock > 90 || lastSaleDays > 60) {
+		if qty > 0 && predictedSales <= 0.1*float64(qty) {
 			deadstockStatus = "DEADSTOCK"
 		} else if qty > 0 && predictedSales < 0.5*float64(qty) {
 			deadstockStatus = "SLOW_MOVING"
@@ -372,8 +351,6 @@ func (u *stockUsecase) Import(
 			Quantity:             qty,
 			UnitCost:             unitCost,
 			ValueLocked:          valueLocked,
-			DaysInStock:          daysInStock,
-			LastSaleDays:         lastSaleDays,
 			CurrentPrice:         unitCost,
 			DeadstockStatus:      deadstockStatus,
 			OpportunityCost:      opportunityCost,
@@ -467,8 +444,6 @@ func (u *stockUsecase) GetItemDetail(ctx context.Context, userID, itemID string)
 		Name:         item.Name,
 		Quantity:     item.Quantity,
 		ValueLocked:  item.ValueLocked,
-		DaysInStock:  item.DaysInStock,
-		LastSaleDays: item.LastSaleDays,
 		CurrentPrice: item.CurrentPrice,
 		StocksID:     item.StockID,
 	}, nil

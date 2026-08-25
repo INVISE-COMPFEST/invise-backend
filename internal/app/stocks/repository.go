@@ -31,8 +31,6 @@ type Item struct {
 	Quantity             int       `gorm:"column:quantity;default:0"`
 	UnitCost             float64   `gorm:"column:unit_cost;default:0"`
 	ValueLocked          float64   `gorm:"column:value_locked;default:0"`
-	DaysInStock          int       `gorm:"column:days_in_stock;default:0"`
-	LastSaleDays         int       `gorm:"column:last_sale_days;default:0"`
 	CurrentPrice         float64   `gorm:"column:current_price;default:0"`
 	DeadstockStatus      string    `gorm:"column:deadstock_status;default:'HEALTHY'"`
 	OpportunityCost      float64   `gorm:"column:opportunity_cost;default:0"`

@@ -505,8 +505,6 @@ func TestStockUsecase_GetItemDetail(t *testing.T) {
 					Name:         "Item Foods #035",
 					Quantity:     20,
 					ValueLocked:  50.0,
-					DaysInStock:  15,
-					LastSaleDays: 5,
 					CurrentPrice: 2.50,
 				}, nil
 			},
